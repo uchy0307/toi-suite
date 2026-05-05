@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useState, useEffect, useMemo } from "react";
 import { BrowserRouter, Routes, Route, useParams, Link, useNavigate } from "react-router-dom";
+import AppGate from "./AppGate.jsx";
 
 // Vite glob import - 全Page*.jsxを動的に発見
 const pageModules = import.meta.glob("./pages/Page*.jsx");
@@ -40,12 +41,14 @@ function PageRoute() {
   if (!loader) return <NotFound />;
   const Component = useMemo(() => lazy(loader), [path]);
   return (
-    <div>
-      <BackBar />
-      <Suspense fallback={<Loading />}>
-        <Component />
-      </Suspense>
-    </div>
+    <AppGate appId={id}>
+      <div>
+        <BackBar />
+        <Suspense fallback={<Loading />}>
+          <Component />
+        </Suspense>
+      </div>
+    </AppGate>
   );
 }
 
