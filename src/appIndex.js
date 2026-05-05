@@ -1,6 +1,8 @@
 // 200本のメタデータ (カタログ画面用)
 export const APP_INDEX = [
   { id: "000", name: "200の問い 人格分析", emoji: "🧬", category: "メタ" },
+  { id: "001", name: "1on1マスターAI", emoji: "🧭", category: "自己理解" },
+  { id: "002", name: "価値観発掘コンサル", emoji: "⚖️", category: "自己理解" },
   { id: "003", name: "強み言語化パートナー", emoji: "💪", category: "自己理解" },
   { id: "004", name: "メンタル・デトックス", emoji: "🌫️", category: "自己理解" },
   { id: "005", name: "ライフミッション作成", emoji: "🔥", category: "自己理解" },
