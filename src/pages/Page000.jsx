@@ -780,7 +780,32 @@ export default function App() {
     setScreen("home"); setAnalysisPrompt(""); setAiResult(""); setProfile(null); setShareImageUrl("");
   };
 
-  // エクスポート: 全app履歴をJSONダウンロード(パース済み・整形済み)
+  // セッションをクリーンアップ: プロンプトテンプレート部分を除去し、人が読める要点のみ抽出
+  const cleanSession = (s) => {
+    if (!s || typeof s !== "object") return s;
+    const cleaned = {};
+    if (s.date) cleaned.date = s.date;
+    if (s.time) cleaned.time = s.time;
+    if (s.userName) cleaned.userName = s.userName;
+    if (s.mode) cleaned.mode = s.mode;
+    // analysis/preview からテンプレート的な部分(### ヘッダ, 罫線等)を除いて要点のみ
+    const clip = (txt) => {
+      if (!txt || typeof txt !== "string") return "";
+      // 罫線・コードブロック・テンプレート見出しを除去
+      return txt
+        .replace(/[─━]{3,}/g, "")
+        .replace(/```[\s\S]*?```/g, "")
+        .replace(/^#{1,6}\s.*$/gm, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim()
+        .slice(0, 500);
+    };
+    const summary = clip(s.summary || s.preview || s.analysis || s.text || "");
+    if (summary) cleaned.summary = summary;
+    return cleaned;
+  };
+
+  // エクスポート: 全app履歴をJSONダウンロード(パース・整形・クリーン化済み)
   const exportData = () => {
     T("tap");
     const apps = {};
@@ -799,14 +824,19 @@ export default function App() {
               apps[id] = {
                 name: meta[0],
                 category: meta[2],
-                sessions: parsed,
+                sessions: parsed.map(cleanSession),
               };
               totalSessions += parsed.length;
             }
           } catch {}
         } else if (key === "app000_profile_v1") {
           try {
-            apps["000_profiles"] = JSON.parse(localStorage.getItem(key) || "[]");
+            const profiles = JSON.parse(localStorage.getItem(key) || "[]");
+            apps["000_profiles"] = profiles.map(p => ({
+              date: p.date, time: p.time,
+              totalApps: p.totalApps, totalSessions: p.totalSessions,
+              summary: (p.profile && p.profile.summary) ? p.profile.summary.slice(0, 500) : "",
+            }));
           } catch {}
         }
       }
