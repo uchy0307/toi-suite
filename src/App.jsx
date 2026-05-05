@@ -94,20 +94,26 @@ function PageRoute() {
 function BackBar() {
   const navigate = useNavigate();
   const [showAnalyze, setShowAnalyze] = useState(false);
+  const [toast, setToast] = useState("");
   const openChatGPT = async () => {
     let prompt = "";
     try {
       prompt = await navigator.clipboard.readText();
     } catch (e) {}
-    // URL長すぎ(431エラー)対策: 短文のみq=で渡す。長文はクリップボードのままChatGPT空画面を開く
     let url = "https://chatgpt.com/";
     if (prompt && prompt.length > 5 && prompt.length <= 1500) {
+      // 短文はURL自動入力(ChatGPTが受け取って入力欄にセット)
       url = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
+      setToast("✨ プロンプトを自動投入してChatGPTを開きました");
     } else if (prompt && prompt.length > 1500) {
-      // クリップボードに残しておく(プロンプトコピー直後の想定)→ ChatGPTでCtrl+V
+      // 長文はクリップボードに保持してCtrl+V誘導
       try { await navigator.clipboard.writeText(prompt); } catch {}
+      setToast("📋 プロンプトをクリップボードにコピー済みです\nChatGPTで Ctrl+V を押してください");
+    } else {
+      setToast("ChatGPTを開きました(プロンプト未検出)");
     }
     window.open(url, "_blank", "noopener");
+    setTimeout(() => setToast(""), 4500);
   };
   return (
     <>
@@ -125,6 +131,11 @@ function BackBar() {
         <Link to="/000" style={{ color: C.gold, textDecoration: "none", fontSize: 10, padding: "5px 7px", borderRadius: 6, background: C.goldBg, border: `1px solid ${C.borderActive}`, fontWeight: 700 }}>🧬 #000</Link>
       </div>
       {showAnalyze && <QuickAnalyze onClose={() => setShowAnalyze(false)} />}
+      {toast && (
+        <div style={{ position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)", zIndex: 200, background: "rgba(26,18,16,0.95)", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 12, fontWeight: 600, maxWidth: 360, textAlign: "center", whiteSpace: "pre-line", boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
+          {toast}
+        </div>
+      )}
     </>
   );
 }

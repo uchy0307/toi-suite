@@ -780,23 +780,43 @@ export default function App() {
     setScreen("home"); setAnalysisPrompt(""); setAiResult(""); setProfile(null); setShareImageUrl("");
   };
 
-  // エクスポート: 全app履歴をJSONダウンロード
+  // エクスポート: 全app履歴をJSONダウンロード(パース済み・整形済み)
   const exportData = () => {
     T("tap");
-    const dump = {};
+    const apps = {};
+    let totalSessions = 0;
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (/^app(\d{2,3})_history_v1$/.test(key) || key === "app000_profile_v1")) {
-          dump[key] = localStorage.getItem(key);
+        if (!key) continue;
+        const m = key.match(/^app(\d{2,3})_history_v1$/);
+        if (m) {
+          try {
+            const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const id = m[1].padStart(3, "0");
+              const meta = APP_META[m[1]] || APP_META[id] || APP_META_FALLBACK(id);
+              apps[id] = {
+                name: meta[0],
+                category: meta[2],
+                sessions: parsed,
+              };
+              totalSessions += parsed.length;
+            }
+          } catch {}
+        } else if (key === "app000_profile_v1") {
+          try {
+            apps["000_profiles"] = JSON.parse(localStorage.getItem(key) || "[]");
+          } catch {}
         }
       }
     } catch (e) {}
     const meta = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
-      appsCount: Object.keys(dump).filter(k => /^app(\d{2,3})_history_v1$/.test(k)).length,
-      data: dump,
+      appsCount: Object.keys(apps).filter(k => /^\d{3}$/.test(k)).length,
+      totalSessions,
+      apps,
     };
     const blob = new Blob([JSON.stringify(meta, null, 2)], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
@@ -814,7 +834,7 @@ export default function App() {
     T("success");
   };
 
-  // インポート: JSONファイルから履歴をマージ
+  // インポート: JSONファイルから履歴をマージ(v1/v2両対応)
   const importData = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -822,30 +842,44 @@ export default function App() {
     reader.onload = (ev) => {
       try {
         const parsed = JSON.parse(ev.target.result);
-        if (!parsed || !parsed.data || typeof parsed.data !== "object") {
+        let merged = 0;
+        const mergeKey = (key, incoming) => {
+          if (!Array.isArray(incoming) || incoming.length === 0) return;
+          let existing = [];
+          try { existing = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
+          const ids = new Set(existing.map(x => x.id || x.timestamp || (x.date + "_" + x.time)));
+          const fresh = incoming.filter(x => {
+            const k = x.id || x.timestamp || (x.date + "_" + x.time);
+            return !ids.has(k);
+          });
+          const combined = [...existing, ...fresh].slice(-100);
+          localStorage.setItem(key, JSON.stringify(combined));
+          merged += fresh.length;
+        };
+        // v2 (新): { apps: { "003": { sessions: [...] }, "000_profiles": [...] } }
+        if (parsed && parsed.apps && typeof parsed.apps === "object") {
+          for (const [id, val] of Object.entries(parsed.apps)) {
+            if (id === "000_profiles" && Array.isArray(val)) {
+              mergeKey("app000_profile_v1", val);
+            } else if (/^\d{3}$/.test(id) && val && Array.isArray(val.sessions)) {
+              mergeKey(`app${id}_history_v1`, val.sessions);
+            }
+          }
+        }
+        // v1 (旧): { data: { "appXXX_history_v1": "<json string>" } }
+        else if (parsed && parsed.data && typeof parsed.data === "object") {
+          for (const [key, val] of Object.entries(parsed.data)) {
+            if (!/^app(\d{2,3})_history_v1$/.test(key) && key !== "app000_profile_v1") continue;
+            try {
+              const incoming = typeof val === "string" ? JSON.parse(val) : val;
+              mergeKey(key, incoming);
+            } catch {}
+          }
+        } else {
           alert("⚠️ 無効なバックアップファイルです");
           return;
         }
-        let merged = 0;
-        for (const [key, val] of Object.entries(parsed.data)) {
-          if (!/^app(\d{2,3})_history_v1$/.test(key) && key !== "app000_profile_v1") continue;
-          try {
-            const incoming = JSON.parse(val);
-            if (!Array.isArray(incoming)) continue;
-            // 既存と統合(重複除去はtimestampで)
-            let existing = [];
-            try { existing = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
-            const ids = new Set(existing.map(x => x.id || x.timestamp || JSON.stringify(x).slice(0, 50)));
-            const fresh = incoming.filter(x => {
-              const k = x.id || x.timestamp || JSON.stringify(x).slice(0, 50);
-              return !ids.has(k);
-            });
-            const combined = [...existing, ...fresh].slice(-100); // 最大100件保持
-            localStorage.setItem(key, JSON.stringify(combined));
-            merged += fresh.length;
-          } catch {}
-        }
-        alert(`✅ インポート完了: ${merged}件の新規セッションを追加`);
+        alert(`✅ インポート完了: ${merged}件の新規セッションを追加しました`);
         setScannedApps(scanAppData());
         T("success");
       } catch (err) {
@@ -853,7 +887,7 @@ export default function App() {
       }
     };
     reader.readAsText(file);
-    e.target.value = ""; // 同じファイル再選択可能に
+    e.target.value = "";
   };
 
   return (
