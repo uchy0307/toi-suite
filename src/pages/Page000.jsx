@@ -798,14 +798,19 @@ export default function App() {
       appsCount: Object.keys(dump).filter(k => /^app(\d{2,3})_history_v1$/.test(k)).length,
       data: dump,
     };
-    const blob = new Blob([JSON.stringify(meta, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(meta, null, 2)], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const stamp = new Date().toLocaleDateString("ja-JP").replace(/\//g, "");
     a.href = url;
     a.download = `200toi_backup_${stamp}.json`;
+    a.style.display = "none";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
     T("success");
   };
 

@@ -99,9 +99,14 @@ function BackBar() {
     try {
       prompt = await navigator.clipboard.readText();
     } catch (e) {}
-    const url = prompt && prompt.length > 5
-      ? `https://chatgpt.com/?q=${encodeURIComponent(prompt.slice(0, 8000))}`
-      : "https://chatgpt.com/";
+    // URL長すぎ(431エラー)対策: 短文のみq=で渡す。長文はクリップボードのままChatGPT空画面を開く
+    let url = "https://chatgpt.com/";
+    if (prompt && prompt.length > 5 && prompt.length <= 1500) {
+      url = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
+    } else if (prompt && prompt.length > 1500) {
+      // クリップボードに残しておく(プロンプトコピー直後の想定)→ ChatGPTでCtrl+V
+      try { await navigator.clipboard.writeText(prompt); } catch {}
+    }
     window.open(url, "_blank", "noopener");
   };
   return (
