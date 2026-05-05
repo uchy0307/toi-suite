@@ -1059,4 +1059,58 @@ export default function App() {
             </div>
           )}
 
-          <ProfileCard icon="🧠" title="思考傾向" body={profile.thinking
+          <ProfileCard icon="🧠" title="思考傾向" body={profile.thinking} color={C.blue} />
+          <ProfileCard icon="❤️" title="感情パターン" body={profile.emotion} color={C.red} />
+          <ProfileCard icon="🎯" title="行動傾向" body={profile.action} color={C.green} />
+          <ProfileCard icon="💎" title="強み と 伸ばしどころ" body={profile.strengths} color={C.gold} />
+          <ProfileCard icon="🌅" title="人生フェーズの傾向" body={profile.phase} color={C.purple} />
+          <ProfileCard icon="🚀" title="おすすめ次アプリ" body={profile.recommend} color={C.gold} />
+          <ProfileCard icon="📝" title="全体総評" body={profile.summary} color={C.goldDim} />
+
+          <div style={{ background: C.surface, border: `1.5px solid ${C.borderActive}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, marginBottom: 8 }}>📤 シェア画像を作る</div>
+            <button onClick={generateShare} disabled={generating} style={{ width: "100%", padding: "10px 0", background: generating ? C.surface3 : C.gold, border: "none", borderRadius: 10, color: generating ? C.textMuted : "#fff", fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+              {generating ? "生成中..." : (shareImageUrl ? "🔄 再生成" : "📸 PNG画像を生成")}
+            </button>
+            {shareImageUrl && (
+              <>
+                <img src={shareImageUrl} alt="プロファイル" style={{ width: "100%", borderRadius: 8, border: `1px solid ${C.border}`, marginBottom: 8 }} />
+                <button onClick={downloadShare} style={{ width: "100%", padding: "10px 0", background: C.green, border: "none", borderRadius: 10, color: "#fff", fontSize: 12, fontWeight: 700 }}>
+                  💾 ダウンロード
+                </button>
+              </>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setScreen("prompt")} style={{ flex: 1, padding: "10px 0", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textSub, fontSize: 11 }}>← プロンプトへ</button>
+            <button onClick={reset} style={{ flex: 1, padding: "10px 0", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textSub, fontSize: 11 }}>🏠 ホーム</button>
+          </div>
+        </div>
+      )}
+
+      {/* HISTORY */}
+      {screen === "history" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 40px" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.gold, marginBottom: 12 }}>📊 過去のプロファイル</div>
+          {profiles.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 30, color: C.textMuted, fontSize: 12 }}>まだ履歴がありません</div>
+          ) : (
+            profiles.map((p, i) => (
+              <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, color: C.gold, fontWeight: 600 }}>{p.date} {p.time}</div>
+                  <div style={{ fontSize: 10, color: C.textMuted }}>{p.totalApps}本 / {p.totalSessions}セッション</div>
+                </div>
+                <div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.7 }}>
+                  {(p.profile.summary || p.profile.raw || "").slice(0, 120)}...
+                </div>
+              </div>
+            ))
+          )}
+          <button onClick={reset} style={{ width: "100%", padding: "12px 0", marginTop: 10, background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 12, color: "#fff", fontSize: 13, fontWeight: 700 }}>🏠 ホーム</button>
+        </div>
+      )}
+    </div>
+  );
+}
