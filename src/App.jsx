@@ -36,11 +36,11 @@ function NotFound() {
 }
 
 function MasterOnlyGate({ children }) {
-  const [unlocked, setUnlocked] = useState(null); // null=判定中, true=解錠, false=ロック
-  useEffect(() => {
-    setUnlocked(localStorage.getItem("toi_master_v1") === "1");
-  }, []);
-  if (unlocked === null) return null;
+  // 初回レンダー時に同期判定 (useEffect だと一瞬空白になる問題を回避)
+  const unlocked = (() => {
+    try { return localStorage.getItem("toi_master_v1") === "1"; }
+    catch { return false; }
+  })();
   if (unlocked) return children;
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, boxSizing: "border-box" }}>
@@ -94,26 +94,16 @@ function PageRoute() {
 function BackBar() {
   const navigate = useNavigate();
   const [showAnalyze, setShowAnalyze] = useState(false);
-  const [toast, setToast] = useState("");
   const openChatGPT = async () => {
     let prompt = "";
-    try {
-      prompt = await navigator.clipboard.readText();
-    } catch (e) {}
+    try { prompt = await navigator.clipboard.readText(); } catch (e) {}
     let url = "https://chatgpt.com/";
     if (prompt && prompt.length > 5 && prompt.length <= 1500) {
-      // 短文はURL自動入力(ChatGPTが受け取って入力欄にセット)
       url = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
-      setToast("✨ プロンプトを自動投入してChatGPTを開きました");
     } else if (prompt && prompt.length > 1500) {
-      // 長文はクリップボードに保持してCtrl+V誘導
       try { await navigator.clipboard.writeText(prompt); } catch {}
-      setToast("📋 プロンプトをクリップボードにコピー済みです\nChatGPTで Ctrl+V を押してください");
-    } else {
-      setToast("ChatGPTを開きました(プロンプト未検出)");
     }
     window.open(url, "_blank", "noopener");
-    setTimeout(() => setToast(""), 4500);
   };
   return (
     <>
@@ -128,14 +118,11 @@ function BackBar() {
         <button onClick={openChatGPT} title="ChatGPTでプロンプト分析" style={{ background: C.goldBg, border: `1px solid ${C.borderActive}`, color: C.gold, fontSize: 10, cursor: "pointer", padding: "5px 7px", borderRadius: 6, fontWeight: 700 }}>
           🤖 AI起動
         </button>
-        <Link to="/000" style={{ color: C.gold, textDecoration: "none", fontSize: 10, padding: "5px 7px", borderRadius: 6, background: C.goldBg, border: `1px solid ${C.borderActive}`, fontWeight: 700 }}>🧬 #000</Link>
+        <button onClick={() => navigate("/000")} style={{ color: C.gold, fontSize: 10, padding: "5px 7px", borderRadius: 6, background: C.goldBg, border: `1px solid ${C.borderActive}`, fontWeight: 700, cursor: "pointer" }}>
+          🧬 #000
+        </button>
       </div>
       {showAnalyze && <QuickAnalyze onClose={() => setShowAnalyze(false)} />}
-      {toast && (
-        <div style={{ position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)", zIndex: 200, background: "rgba(26,18,16,0.95)", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 12, fontWeight: 600, maxWidth: 360, textAlign: "center", whiteSpace: "pre-line", boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
-          {toast}
-        </div>
-      )}
     </>
   );
 }
@@ -174,147 +161,4 @@ function CatalogGate({ children }) {
   if (unlocked) return children;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", boxSizing: "border-box" }}>
-      <div style={{ maxWidth: 380, width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 20, boxSizing: "border-box" }}>
-        <div style={{ fontSize: 36, textAlign: "center", marginBottom: 8 }}>🗝️</div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: C.gold, textAlign: "center", marginBottom: 6 }}>
-          200の問い シリーズ カタログ
-        </div>
-        <div style={{ fontSize: 11, color: C.textSub, textAlign: "center", marginBottom: 20, lineHeight: 1.7 }}>
-          全200本のアプリ一覧は<strong>メンバーシップ加入者のみ</strong>閲覧できます<br />
-          マスターコードを入力してください
-        </div>
-        <input
-          type="text"
-          value={code}
-          onChange={e => setCode(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") tryUnlock(); }}
-          placeholder="例: TOI-MASTER-XXXXXX"
-          autoFocus
-          style={{ width: "100%", background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "12px 10px", fontSize: 12, fontFamily: "monospace", marginBottom: 10, color: C.text, textAlign: "center", letterSpacing: 0.5, boxSizing: "border-box" }}
-        />
-        {error && <div style={{ fontSize: 11, color: "#8a3030", marginBottom: 10, textAlign: "center" }}>⚠️ {error}</div>}
-        <button onClick={tryUnlock} disabled={verifying || !code.trim()} style={{ width: "100%", padding: "12px 0", background: verifying || !code.trim() ? "#ccc" : `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 700 }}>
-          {verifying ? "🌀 照合中..." : "🔓 アンロック"}
-        </button>
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, lineHeight: 1.7 }}>
-          💡 個別アプリは直接URL (例: /003) でアクセスし、個別コードで解除できます。<br />
-          メンバーシップなら全アプリが1コードで解除されます。
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Catalog() {
-  const [search, setSearch] = useState("");
-  const [history, setHistory] = useState({});
-
-  useEffect(() => {
-    // 各appの履歴件数を集計
-    const h = {};
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        const m = key && key.match(/^app(\d{2,3})_history_v1$/);
-        if (m) {
-          try {
-            const data = JSON.parse(localStorage.getItem(key) || "[]");
-            h[m[1].padStart(3, "0")] = data.length;
-          } catch (e) {}
-        }
-      }
-    } catch (e) {}
-    setHistory(h);
-  }, []);
-
-  const filtered = APP_INDEX.filter(a => {
-    if (!search) return true;
-    return a.name.includes(search) || a.id.includes(search) || (a.category || "").includes(search);
-  });
-
-  const grouped = {};
-  for (const a of filtered) {
-    const cat = a.category || "その他";
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(a);
-  }
-
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 540, margin: "0 auto" }}>
-      {/* ヘッダー */}
-      <div style={{ padding: "20px 18px", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, color: "#fff" }}>
-        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>200の問い シリーズ</div>
-        <div style={{ fontSize: 11, color: "#f5e8d0", lineHeight: 1.6 }}>自己理解を深める200本のAI対話アプリ統合スイート</div>
-      </div>
-
-      {/* メタアプリへの誘導(目立つカード) */}
-      <Link to="/000" style={{ textDecoration: "none" }}>
-        <div style={{ margin: 14, padding: 16, background: C.surface, border: `2px solid ${C.borderActive}`, borderRadius: 14, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ fontSize: 36 }}>🧬</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>#000 200の問い 人格分析</div>
-            <div style={{ fontSize: 10, color: C.textSub, marginTop: 4, lineHeight: 1.6 }}>全アプリ実績から横断的にあなたの人格を可視化する最上位メタアプリ</div>
-          </div>
-          <div style={{ color: C.gold, fontSize: 18 }}>→</div>
-        </div>
-      </Link>
-
-      {/* 検索 */}
-      <div style={{ padding: "0 14px 14px" }}>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="🔍 アプリを検索 (例: 強み、副業、感情)"
-          style={{ width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "10px 14px", fontSize: 13, boxSizing: "border-box" }}
-        />
-      </div>
-
-      {/* カテゴリ別アプリ一覧 */}
-      <div style={{ padding: "0 14px 40px" }}>
-        {Object.entries(grouped).map(([cat, apps]) => (
-          <div key={cat} style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, marginBottom: 8, padding: "0 4px" }}>📂 {cat} ({apps.length}本)</div>
-            {apps.map(a => {
-              const hcount = history[a.id] || 0;
-              return (
-                <Link key={a.id} to={`/${a.id}`} style={{ textDecoration: "none" }}>
-                  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ fontSize: 20 }}>{a.emoji}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>#{a.id} {a.name}</div>
-                      {hcount > 0 && <div style={{ fontSize: 9, color: C.gold, marginTop: 2 }}>📊 {hcount}回実施済み</div>}
-                    </div>
-                    <div style={{ color: C.textMuted, fontSize: 14 }}>›</div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
-        {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 12 }}>
-            該当するアプリがありません
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default function App() {
-  useEffect(() => {
-    document.body.style.background = "#f0ede8";
-    document.documentElement.style.background = "#f0ede8";
-  }, []);
-
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<CatalogGate><Catalog /></CatalogGate>} />
-        <Route path="/:id" element={<PageRoute />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
-  );
-}
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", boxSizing: "b
