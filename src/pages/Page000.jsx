@@ -780,29 +780,14 @@ export default function App() {
     setScreen("home"); setAnalysisPrompt(""); setAiResult(""); setProfile(null); setShareImageUrl("");
   };
 
-  // セッションをクリーンアップ: プロンプトテンプレート部分を除去し、人が読める要点のみ抽出
+  // セッションを最小情報のみに圧縮(プロンプト・コード・分析テキスト類を完全除去)
   const cleanSession = (s) => {
     if (!s || typeof s !== "object") return s;
-    const cleaned = {};
-    if (s.date) cleaned.date = s.date;
-    if (s.time) cleaned.time = s.time;
-    if (s.userName) cleaned.userName = s.userName;
-    if (s.mode) cleaned.mode = s.mode;
-    // analysis/preview からテンプレート的な部分(### ヘッダ, 罫線等)を除いて要点のみ
-    const clip = (txt) => {
-      if (!txt || typeof txt !== "string") return "";
-      // 罫線・コードブロック・テンプレート見出しを除去
-      return txt
-        .replace(/[─━]{3,}/g, "")
-        .replace(/```[\s\S]*?```/g, "")
-        .replace(/^#{1,6}\s.*$/gm, "")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim()
-        .slice(0, 500);
+    return {
+      date: s.date || "",
+      time: s.time || "",
+      mode: s.mode || "",
     };
-    const summary = clip(s.summary || s.preview || s.analysis || s.text || "");
-    if (summary) cleaned.summary = summary;
-    return cleaned;
   };
 
   // エクスポート: 全app履歴をJSONダウンロード(パース・整形・クリーン化済み)
@@ -835,7 +820,6 @@ export default function App() {
             apps["000_profiles"] = profiles.map(p => ({
               date: p.date, time: p.time,
               totalApps: p.totalApps, totalSessions: p.totalSessions,
-              summary: (p.profile && p.profile.summary) ? p.profile.summary.slice(0, 500) : "",
             }));
           } catch {}
         }
