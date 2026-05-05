@@ -89,8 +89,8 @@ export default function AppGate({ appId, children }) {
   if (unlocked) return children;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
-      <div style={{ maxWidth: 420, width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 24 }}>
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", boxSizing: "border-box" }}>
+      <div style={{ maxWidth: 380, width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 20, boxSizing: "border-box" }}>
         <div style={{ fontSize: 36, textAlign: "center", marginBottom: 8 }}>🔐</div>
         <div style={{ fontSize: 16, fontWeight: 800, color: C.gold, textAlign: "center", marginBottom: 6 }}>
           アプリ #{appId}
@@ -107,7 +107,7 @@ export default function AppGate({ appId, children }) {
           onKeyDown={e => { if (e.key === "Enter") tryUnlock(); }}
           placeholder={`例: TOI-${appId}-XXXX`}
           autoFocus
-          style={{ width: "100%", background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", fontSize: 13, fontFamily: "monospace", marginBottom: 10, color: C.text, textAlign: "center", letterSpacing: 1 }}
+          style={{ width: "100%", background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "12px 10px", fontSize: 12, fontFamily: "monospace", marginBottom: 10, color: C.text, textAlign: "center", letterSpacing: 0.5, boxSizing: "border-box" }}
         />
 
         {error && <div style={{ fontSize: 11, color: C.red, marginBottom: 10, textAlign: "center" }}>⚠️ {error}</div>}

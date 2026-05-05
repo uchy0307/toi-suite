@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useState, useEffect, useMemo } from "react";
 import { BrowserRouter, Routes, Route, useParams, Link, useNavigate } from "react-router-dom";
 import AppGate from "./AppGate.jsx";
+import QuickAnalyze from "./QuickAnalyze.jsx";
 
 // Vite glob import - 全Page*.jsxを動的に発見
 const pageModules = import.meta.glob("./pages/Page*.jsx");
@@ -54,13 +55,99 @@ function PageRoute() {
 
 function BackBar() {
   const navigate = useNavigate();
+  const [showAnalyze, setShowAnalyze] = useState(false);
+  const openChatGPT = async () => {
+    let prompt = "";
+    try {
+      prompt = await navigator.clipboard.readText();
+    } catch (e) {}
+    const url = prompt && prompt.length > 5
+      ? `https://chatgpt.com/?q=${encodeURIComponent(prompt.slice(0, 8000))}`
+      : "https://chatgpt.com/";
+    window.open(url, "_blank", "noopener");
+  };
   return (
-    <div style={{ position: "sticky", top: 0, zIndex: 100, background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "8px 14px", display: "flex", alignItems: "center", gap: 8, maxWidth: 540, margin: "0 auto" }}>
-      <button onClick={() => navigate("/")} style={{ background: "transparent", border: "none", color: C.gold, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-        ← カタログ
-      </button>
-      <div style={{ flex: 1 }} />
-      <Link to="/000" style={{ color: C.gold, textDecoration: "none", fontSize: 11 }}>🧬 人格分析 #000</Link>
+    <>
+      <div style={{ position: "sticky", top: 0, zIndex: 100, background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "8px 10px", display: "flex", alignItems: "center", gap: 4, maxWidth: 540, margin: "0 auto", boxSizing: "border-box" }}>
+        <button onClick={() => navigate("/")} style={{ background: "transparent", border: "none", color: C.gold, fontSize: 11, cursor: "pointer", padding: "4px 6px" }}>
+          ← カタログ
+        </button>
+        <div style={{ flex: 1 }} />
+        <button onClick={() => setShowAnalyze(true)} title="クリップボードと履歴から簡易分析" style={{ background: C.goldBg, border: `1px solid ${C.borderActive}`, color: C.gold, fontSize: 10, cursor: "pointer", padding: "5px 7px", borderRadius: 6, fontWeight: 700 }}>
+          📊 簡易分析
+        </button>
+        <button onClick={openChatGPT} title="ChatGPTでプロンプト分析" style={{ background: C.goldBg, border: `1px solid ${C.borderActive}`, color: C.gold, fontSize: 10, cursor: "pointer", padding: "5px 7px", borderRadius: 6, fontWeight: 700 }}>
+          🤖 AI起動
+        </button>
+        <Link to="/000" style={{ color: C.gold, textDecoration: "none", fontSize: 10, padding: "5px 7px", borderRadius: 6, background: C.goldBg, border: `1px solid ${C.borderActive}`, fontWeight: 700 }}>🧬 #000</Link>
+      </div>
+      {showAnalyze && <QuickAnalyze onClose={() => setShowAnalyze(false)} />}
+    </>
+  );
+}
+
+function CatalogGate({ children }) {
+  // カタログはマスターキーのみで閲覧可能 (個別コードはアプリ単体に効く)
+  const [unlocked, setUnlocked] = useState(false);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem("toi_master_v1") === "1") setUnlocked(true);
+  }, []);
+
+  const tryUnlock = async () => {
+    setError(""); setVerifying(true);
+    const trimmed = code.trim().toUpperCase();
+    try {
+      const buf = new TextEncoder().encode(trimmed);
+      const sha = await crypto.subtle.digest("SHA-256", buf);
+      const hash = Array.from(new Uint8Array(sha)).map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 10);
+      // 動的にCODE_HASHESを取得 (循環import回避)
+      const { CODE_HASHES } = await import("./codeHashes.js");
+      if (hash === CODE_HASHES["MASTER"]) {
+        localStorage.setItem("toi_master_v1", "1");
+        setUnlocked(true);
+      } else {
+        setError("マスターコードが正しくありません");
+      }
+    } catch (e) {
+      setError("照合エラー");
+    } finally { setVerifying(false); }
+  };
+
+  if (unlocked) return children;
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", boxSizing: "border-box" }}>
+      <div style={{ maxWidth: 380, width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 20, boxSizing: "border-box" }}>
+        <div style={{ fontSize: 36, textAlign: "center", marginBottom: 8 }}>🗝️</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: C.gold, textAlign: "center", marginBottom: 6 }}>
+          200の問い シリーズ カタログ
+        </div>
+        <div style={{ fontSize: 11, color: C.textSub, textAlign: "center", marginBottom: 20, lineHeight: 1.7 }}>
+          全200本のアプリ一覧は<strong>メンバーシップ加入者のみ</strong>閲覧できます<br />
+          マスターコードを入力してください
+        </div>
+        <input
+          type="text"
+          value={code}
+          onChange={e => setCode(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") tryUnlock(); }}
+          placeholder="例: TOI-MASTER-XXXXXX"
+          autoFocus
+          style={{ width: "100%", background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "12px 10px", fontSize: 12, fontFamily: "monospace", marginBottom: 10, color: C.text, textAlign: "center", letterSpacing: 0.5, boxSizing: "border-box" }}
+        />
+        {error && <div style={{ fontSize: 11, color: "#8a3030", marginBottom: 10, textAlign: "center" }}>⚠️ {error}</div>}
+        <button onClick={tryUnlock} disabled={verifying || !code.trim()} style={{ width: "100%", padding: "12px 0", background: verifying || !code.trim() ? "#ccc" : `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 700 }}>
+          {verifying ? "🌀 照合中..." : "🔓 アンロック"}
+        </button>
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, lineHeight: 1.7 }}>
+          💡 個別アプリは直接URL (例: /003) でアクセスし、個別コードで解除できます。<br />
+          メンバーシップなら全アプリが1コードで解除されます。
+        </div>
+      </div>
     </div>
   );
 }
@@ -125,7 +212,7 @@ function Catalog() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="🔍 アプリを検索 (例: 強み、副業、感情)"
-          style={{ width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "10px 14px", fontSize: 13 }}
+          style={{ width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "10px 14px", fontSize: 13, boxSizing: "border-box" }}
         />
       </div>
 
@@ -170,7 +257,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Catalog />} />
+        <Route path="/" element={<CatalogGate><Catalog /></CatalogGate>} />
         <Route path="/:id" element={<PageRoute />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
