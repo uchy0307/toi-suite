@@ -780,6 +780,77 @@ export default function App() {
     setScreen("home"); setAnalysisPrompt(""); setAiResult(""); setProfile(null); setShareImageUrl("");
   };
 
+  // エクスポート: 全app履歴をJSONダウンロード
+  const exportData = () => {
+    T("tap");
+    const dump = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (/^app(\d{2,3})_history_v1$/.test(key) || key === "app000_profile_v1")) {
+          dump[key] = localStorage.getItem(key);
+        }
+      }
+    } catch (e) {}
+    const meta = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      appsCount: Object.keys(dump).filter(k => /^app(\d{2,3})_history_v1$/.test(k)).length,
+      data: dump,
+    };
+    const blob = new Blob([JSON.stringify(meta, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toLocaleDateString("ja-JP").replace(/\//g, "");
+    a.href = url;
+    a.download = `200toi_backup_${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    T("success");
+  };
+
+  // インポート: JSONファイルから履歴をマージ
+  const importData = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (!parsed || !parsed.data || typeof parsed.data !== "object") {
+          alert("⚠️ 無効なバックアップファイルです");
+          return;
+        }
+        let merged = 0;
+        for (const [key, val] of Object.entries(parsed.data)) {
+          if (!/^app(\d{2,3})_history_v1$/.test(key) && key !== "app000_profile_v1") continue;
+          try {
+            const incoming = JSON.parse(val);
+            if (!Array.isArray(incoming)) continue;
+            // 既存と統合(重複除去はtimestampで)
+            let existing = [];
+            try { existing = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
+            const ids = new Set(existing.map(x => x.id || x.timestamp || JSON.stringify(x).slice(0, 50)));
+            const fresh = incoming.filter(x => {
+              const k = x.id || x.timestamp || JSON.stringify(x).slice(0, 50);
+              return !ids.has(k);
+            });
+            const combined = [...existing, ...fresh].slice(-100); // 最大100件保持
+            localStorage.setItem(key, JSON.stringify(combined));
+            merged += fresh.length;
+          } catch {}
+        }
+        alert(`✅ インポート完了: ${merged}件の新規セッションを追加`);
+        setScannedApps(scanAppData());
+        T("success");
+      } catch (err) {
+        alert("⚠️ ファイル読込エラー: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // 同じファイル再選択可能に
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 540, margin: "0 auto", display: "flex", flexDirection: "column" }}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}body,html{background:#f0ede8!important}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#c8c0b4}textarea:focus,input:focus{outline:none}button{font-family:inherit;cursor:pointer}select{font-family:inherit}`}</style>
@@ -813,24 +884,24 @@ export default function App() {
           </div>
 
           <div style={{ background: C.surface, border: `1.5px solid ${C.borderActive}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.gold, marginBottom: 10 }}>📡 検出されたapp履歴</div>
-
-            {/* クロスドメインスキャンボタン */}
-            <button
-              onClick={runCrossDomainScan}
-              disabled={crossScanning}
-              style={{ width: "100%", padding: "10px 0", marginBottom: 10, background: crossScanning ? C.surface3 : `linear-gradient(135deg,${C.blue},#0a3a5a)`, border: "none", borderRadius: 10, color: crossScanning ? C.textMuted : "#fff", fontSize: 12, fontWeight: 700 }}
-            >
-              {crossScanning ? `🌐 スキャン中 ${crossProgress.done}/${crossProgress.total} ${crossProgress.current}` : "🌐 全app自動スキャン (toi-XXX を巡回)"}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>📡 検出されたapp履歴</div>
+              <button
+                onClick={runCrossDomainScan}
+                disabled={crossScanning}
+                style={{ padding: "5px 10px", background: crossScanning ? C.surface3 : C.goldBg, border: `1px solid ${crossScanning ? C.border : C.borderActive}`, borderRadius: 8, color: crossScanning ? C.textMuted : C.gold, fontSize: 10, fontWeight: 700 }}
+              >
+                {crossScanning ? `${crossProgress.done}/${crossProgress.total}` : "🔄 再スキャン"}
+              </button>
+            </div>
             <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
-              ☝️ 全200本のappを iframe で巡回して、それぞれのlocalStorage履歴を取得します。1〜2分かかります。
+              ☝️ このブラウザに保存された全アプリの履歴を自動検出します(統合PWA同origin)。
             </div>
 
             {scannedApps.length === 0 ? (
               <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, padding: "8px 0" }}>
-                まだ検出されていません。<br />
-                上の「全app自動スキャン」ボタンか、「手動で結果を入れる」をご利用ください。
+                まだ履歴がありません。<br />
+                各アプリで分析を完了させると自動で集計されます。
               </div>
             ) : (
               <>
@@ -850,25 +921,21 @@ export default function App() {
             )}
           </div>
 
-          {/* 手動入力 */}
+          {/* バックアップ・端末間移動 */}
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.textSub, marginBottom: 8 }}>📝 手動で過去の結果を追加 (任意)</div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-              <input value={manualForm.id} onChange={e => setManualForm({ ...manualForm, id: e.target.value })} placeholder="app番号(例: 003)" style={{ width: 110, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, padding: "8px 10px", fontSize: 11 }} />
-              <button onClick={addManual} disabled={!manualForm.id || !manualForm.text.trim()} style={{ flex: 1, background: (!manualForm.id || !manualForm.text.trim()) ? C.surface3 : C.gold, border: "none", borderRadius: 8, color: (!manualForm.id || !manualForm.text.trim()) ? C.textMuted : "#fff", fontSize: 11, fontWeight: 600 }}>+ 追加</button>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.textSub, marginBottom: 6 }}>💾 バックアップ・端末間移動</div>
+            <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
+              データは「このブラウザ」に保存されます。別端末で続けたい時はエクスポート→新端末でインポート。
             </div>
-            <textarea value={manualForm.text} onChange={e => setManualForm({ ...manualForm, text: e.target.value })} placeholder="そのアプリで得たAI分析結果を貼り付け..." rows={3} style={{ width: "100%", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, padding: "8px 10px", fontSize: 11, resize: "vertical", fontFamily: "sans-serif" }} />
-            {manualEntries.length > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>追加済み {manualEntries.length}件</div>
-                {manualEntries.map((e, i) => (
-                  <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 0", fontSize: 10, color: C.textSub }}>
-                    <span style={{ flex: 1 }}>#{e.id} {e.name}</span>
-                    <button onClick={() => removeManual(i)} style={{ background: "transparent", border: "none", color: C.red, fontSize: 10 }}>×</button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={exportData} style={{ flex: 1, padding: "9px 0", background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700 }}>
+                📤 エクスポート
+              </button>
+              <label style={{ flex: 1, padding: "9px 0", background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, textAlign: "center", cursor: "pointer" }}>
+                📥 インポート
+                <input type="file" accept="application/json,.json" onChange={importData} style={{ display: "none" }} />
+              </label>
+            </div>
           </div>
 
           <button

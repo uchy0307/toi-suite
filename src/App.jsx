@@ -35,12 +35,50 @@ function NotFound() {
   );
 }
 
+function MasterOnlyGate({ children }) {
+  const [unlocked, setUnlocked] = useState(null); // null=判定中, true=解錠, false=ロック
+  useEffect(() => {
+    setUnlocked(localStorage.getItem("toi_master_v1") === "1");
+  }, []);
+  if (unlocked === null) return null;
+  if (unlocked) return children;
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, boxSizing: "border-box" }}>
+      <div style={{ maxWidth: 380, width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 24, boxSizing: "border-box", textAlign: "center" }}>
+        <div style={{ fontSize: 44, marginBottom: 10 }}>🔒</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: C.gold, marginBottom: 8 }}>メンバーのみ利用可能</div>
+        <div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.7, marginBottom: 16 }}>
+          このアプリ(#000 メタ人格分析)は<br />
+          <strong>メンバーシップ加入者専用</strong>です<br />
+          マスターコードを入力するとアクセスできます
+        </div>
+        <Link to="/" style={{ display: "inline-block", padding: "10px 20px", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, color: "#fff", borderRadius: 10, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>← カタログに戻る</Link>
+      </div>
+    </div>
+  );
+}
+
 function PageRoute() {
   const { id } = useParams();
   const path = `./pages/Page${id}.jsx`;
   const loader = pageModules[path];
   if (!loader) return <NotFound />;
   const Component = useMemo(() => lazy(loader), [path]);
+
+  // #000はメンバー専用
+  if (id === "000") {
+    return (
+      <MasterOnlyGate>
+        <div>
+          <BackBar />
+          <Suspense fallback={<Loading />}>
+            <Component />
+          </Suspense>
+        </div>
+      </MasterOnlyGate>
+    );
+  }
+
   return (
     <AppGate appId={id}>
       <div>
