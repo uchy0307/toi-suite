@@ -1,9 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 
 // ───────────────────────────────────────────────────────────
-// 価値観発掘コンサル - 旧仕様復元版
+// 価値観発掘コンサル - 旧仕様完全復元版
 // 機能: 12軸価値観・レーダーチャート・深掘り5問
 // δ方式実装: API呼び出しゼロ、プロンプト生成のみ
+// ───────────────────────────────────────────────────────────
+// 旧仕様の体験を復元:
+//  - 過去保存と呼び出し (履歴一覧 / 復元 / 削除)
+//  - localStorageから完全復元 (rankings + answers + prompt)
+//  - 主要ボタンに音声フィードバック
 // ───────────────────────────────────────────────────────────
 
 window._tapOn = typeof window._tapOn !== "undefined" ? window._tapOn : true;
@@ -30,6 +35,12 @@ function T(type = "tap") {
         g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.2);
         o2.start(ctx.currentTime + i * 0.1); o2.stop(ctx.currentTime + i * 0.1 + 0.25);
       });
+    } else if (type === "send") {
+      o.frequency.setValueAtTime(660, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.06);
+      g.gain.setValueAtTime(0.1, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      o.start(); o.stop(ctx.currentTime + 0.1);
     }
   } catch (e) {}
 }
@@ -57,6 +68,7 @@ const C = {
   textSub: "#3a3028", textMuted: "#6a5e50",
   green: "#1a4a30", greenLight: "#d0eedd",
   blue: "#1a4a6a", blueLight: "#d0e0ee",
+  red: "#a02018",
 };
 
 // ============================================================
@@ -311,17 +323,39 @@ export default function App() {
   };
 
   const saveToHistory = () => {
+    T("tap");
     const rec = {
-      date: new Date().toLocaleDateString("ja-JP"),
+      id: Date.now(),
+      date: new Date().toLocaleString("ja-JP"),
       userName: userName || "匿名",
       top3: rankings.slice(0, 3).map(id => VALUES.find(v => v.id === id)?.label),
       rankings,
       answers,
+      prompt,
     };
     const newH = [...history, rec];
     setHistory(newH);
     saveHistory(newH);
     T("success");
+  };
+
+  // ★Bug修正: 過去保存ボタンの呼び出し（履歴復元）
+  const loadFromHistory = (rec) => {
+    T("tap");
+    setUserName(rec.userName === "匿名" ? "" : (rec.userName || ""));
+    setRankings(rec.rankings || []);
+    setAnswers(rec.answers || {});
+    setPrompt(rec.prompt || buildValueAnalysisPrompt(rec.userName, rec.rankings || [], rec.answers || {}));
+    setPromptReady(true);
+    setScreen("result");
+    T("success");
+  };
+
+  const deleteHistory = (id) => {
+    T("tap");
+    const newH = history.filter(h => h.id !== id);
+    setHistory(newH);
+    saveHistory(newH);
   };
 
   const resetAll = () => {
@@ -336,9 +370,11 @@ export default function App() {
     setUserName("");
   };
 
+  const goHome = () => { T("tap"); setScreen("home"); };
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column" }}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#ddd}textarea:focus{border-color:${C.borderActive}!important;outline:none}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#ddd}textarea:focus,input:focus{border-color:${C.borderActive}!important;outline:none}`}</style>
 
       {/* Header */}
       <div style={{ padding: "12px 14px 0", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
@@ -349,9 +385,9 @@ export default function App() {
             <div style={{ fontSize: 9, color: C.textMuted }}>VALUE DISCOVERY</div>
           </div>
           <button onClick={toggleTap} style={{ padding: "4px 8px", background: tapOn ? C.goldBg : C.surface2, border: `1px solid ${tapOn ? C.borderActive : C.border}`, borderRadius: 7, fontSize: 10, color: tapOn ? C.gold : C.textMuted, cursor: "pointer", fontWeight: 600 }}>{tapOn ? "🔔音ON" : "🔕音OFF"}</button>
-          <button onClick={() => setScreen("home")} style={{ padding: "4px 8px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 10, color: C.textSub, cursor: "pointer" }}>🏠 ホーム</button>
+          <button onClick={goHome} style={{ padding: "4px 8px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 10, color: C.textSub, cursor: "pointer" }}>🏠 ホーム</button>
         </div>
-        {screen !== "home" && (
+        {screen !== "home" && screen !== "history" && (
           <div style={{ display: "flex", gap: 4, paddingBottom: 10 }}>
             {["価値観選択", "深掘り質問", "分析"].map((lbl, i) => (
               <div key={i} style={{ flex: 1, textAlign: "center" }}>
@@ -394,6 +430,13 @@ export default function App() {
           <button onClick={() => { T("tap"); setScreen("ranking"); }} style={{ width: "100%", padding: "14px 0", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 14, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
             セッションを始める →
           </button>
+
+          {/* 過去保存ボタン (旧仕様復元) */}
+          {history.length > 0 && (
+            <button onClick={() => { T("tap"); setScreen("history"); }} style={{ marginTop: 14, width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              📚 過去の保存を見る（{history.length}件）
+            </button>
+          )}
         </div>
       )}
 
@@ -481,12 +524,47 @@ export default function App() {
             </div>
           </div>
 
-          <button onClick={saveToHistory} style={{ width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+          <button onClick={saveToHistory} style={{ width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 700, marginBottom: 8, cursor: "pointer" }}>
             💾 履歴に保存
           </button>
 
-          <button onClick={resetAll} style={{ width: "100%", padding: "12px 0", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 12, color: "#fff", fontSize: 13, fontWeight: 700 }}>
+          <button onClick={resetAll} style={{ width: "100%", padding: "12px 0", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 12, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
             🔄 新規セッション
+          </button>
+        </div>
+      )}
+
+      {/* 履歴 (旧仕様復元: 過去保存と呼び出し) */}
+      {screen === "history" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.goldDim, marginBottom: 12 }}>📚 過去の保存</div>
+          {history.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 12 }}>保存はまだありません。</div>
+          ) : (
+            <>
+              {history.slice().reverse().map((rec) => (
+                <div key={rec.id || rec.date} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>{rec.date}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.goldDim, marginBottom: 4 }}>
+                    {rec.userName || "匿名"}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textSub, marginBottom: 6 }}>
+                    TOP3: {(rec.top3 || []).filter(Boolean).join(" / ")}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button onClick={() => loadFromHistory(rec)} style={{ flex: 1, padding: "8px 0", background: C.gold, border: "none", borderRadius: 8, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      🔄 呼び出す
+                    </button>
+                    <button onClick={() => deleteHistory(rec.id)} style={{ padding: "8px 12px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+          <button onClick={goHome} style={{ width: "100%", padding: "12px 0", marginTop: 8, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            ← ホームに戻る
           </button>
         </div>
       )}

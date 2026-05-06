@@ -1,8 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
 
 // ───────────────────────────────────────────────────────────
-// 1on1マスターAI - 旧仕様復元版 (ペルソナ6次元)
+// 1on1マスターAI - 旧仕様完全復元版 (ペルソナ6次元)
 // δ方式実装: API呼び出しゼロ、プロンプト生成のみ
+// ───────────────────────────────────────────────────────────
+// 旧仕様の体験を復元:
+//  - 部下の名前入力 (プロフィールに保存・プロンプトに反映)
+//  - 旧仕様の質問順 (年齢→ポジション→業種→職種→家族→性格→状況)
+//  - プロンプト生成→結果画面への自動遷移
+//  - 全主要ボタンに音声フィードバック
+//  - 履歴閲覧/再表示/削除 (localStorageから復元)
 // ───────────────────────────────────────────────────────────
 
 window._tapOn = typeof window._tapOn !== "undefined" ? window._tapOn : true;
@@ -219,7 +226,7 @@ const MASLOW = {
 // δ方式プロンプト生成
 // ============================================================
 
-const buildPersonaPrompt = (p, userRole, userAge) => {
+const buildPersonaPrompt = (p, userRole, userAge, subName) => {
   const cycle = SUCCESS_CYCLE.diagnose(p.issue, p.personality);
   const maslow = MASLOW.diagnose(p.issue, p.personality, p.family);
   const ageRel = p.ageRelation;
@@ -230,16 +237,19 @@ const buildPersonaPrompt = (p, userRole, userAge) => {
     ? `⚠️ 部長として接する場合：部下が「本音を言える場」かどうかを常に意識する。`
     : ``;
 
+  const nm = (subName || "").trim();
+  const callName = nm ? `${nm}さん` : "部下";
+
   const openMap = {
-    "新入社員（1年目）": `「最近どう？仕事、少し慣れてきた？正直なところ聞かせて」`,
-    "若手（2〜4年目）": `「最近どう？ぶっちゃけ気になってることある？」`,
-    "中堅（5〜9年目）": `「最近どう？仕事に限らず、何か感じてることある？」`,
-    "シニア・主任クラス": `「最近チームどう見てる？正直な感想聞かせて」`,
-    "もうすぐ管理職": `「最近、仕事全体を見てどう感じてる？率直に」`,
-    "牽引層・リーダー候補": `「チームのこと、最近どう見てる？正直なところ」`,
-    "ベテラン・専門職（非管理）": `「最近、仕事で気になってることある？何でも」`,
+    "新入社員（1年目）": `「${callName}、最近どう？仕事、少し慣れてきた？正直なところ聞かせて」`,
+    "若手（2〜4年目）": `「${callName}、最近どう？ぶっちゃけ気になってることある？」`,
+    "中堅（5〜9年目）": `「${callName}、最近どう？仕事に限らず、何か感じてることある？」`,
+    "シニア・主任クラス": `「${callName}、最近チームどう見てる？正直な感想聞かせて」`,
+    "もうすぐ管理職": `「${callName}、最近、仕事全体を見てどう感じてる？率直に」`,
+    "牽引層・リーダー候補": `「${callName}、チームのこと、最近どう見てる？正直なところ」`,
+    "ベテラン・専門職（非管理）": `「${callName}、最近、仕事で気になってることある？何でも」`,
   };
-  const opening = openMap[p.position] || `「最近どう？何か気になってることある？」`;
+  const opening = openMap[p.position] || `「${callName}、最近どう？何か気になってることある？」`;
 
   const ngList = [];
   if (p.personality.includes("反発しやすい・自己主張強め")) ngList.push("「言い訳しないで」→ 関係の質が一気に崩壊");
@@ -251,7 +261,7 @@ const buildPersonaPrompt = (p, userRole, userAge) => {
 
   return `【1on1ペルソナ分析】
 あなた: ${userRole === "exec" ? "役員" : userRole === "senior" ? "シニアマネージャー" : "マネージャー"}（${userAge}歳）
-部下: ${p.ageLabel} / ${p.industry} / ${p.job} / ${p.position}（${ageRel}）
+部下: ${nm ? nm + " / " : ""}${p.ageLabel} / ${p.industry} / ${(Array.isArray(p.job) ? p.job.join("・") : p.job)} / ${p.position}（${ageRel}）
 家族: ${p.family}
 性格: ${p.personality.join("・")}
 状況: ${p.issue.join("・")}
@@ -377,6 +387,7 @@ export default function App() {
   // ペルソナ
   const [persona, setPersona] = useState({});
   const [subAgeLabel, setSubAgeLabel] = useState("");
+  const [subName, setSubName] = useState(""); // 部下の名前 (旧仕様復元)
 
   // 履歴
   const [history, setHistory] = useState(loadHistory());
@@ -385,6 +396,7 @@ export default function App() {
   const [promptReady, setPromptReady] = useState(false);
 
   const togglePersona = (key, val, multi) => {
+    T("tap");
     setPersona(prev => {
       if (multi) { const c = prev[key] || []; return { ...prev, [key]: c.includes(val) ? c.filter(v => v !== val) : [...c, val] }; }
       return { ...prev, [key]: prev[key] === val ? undefined : val };
@@ -416,18 +428,25 @@ export default function App() {
   });
 
   const generatePrompt = () => {
+    T("tap");
     const fp = buildFullPersona();
-    const p = buildPersonaPrompt(fp, userRole, userAge);
+    const p = buildPersonaPrompt(fp, userRole, userAge, subName);
     setPrompt(p);
     setPromptReady(true);
+    setScreen("result"); // ★Bug修正: 生成後に結果画面へ自動遷移
     T("success");
   };
 
   const saveToHistory = () => {
+    T("tap");
     const fp = buildFullPersona();
     const rec = {
-      date: new Date().toLocaleDateString("ja-JP"),
-      persona: `${subAgeLabel}/${fp.job}/${fp.position}`,
+      id: Date.now(),
+      date: new Date().toLocaleString("ja-JP"),
+      subName: subName || "",
+      persona: `${subAgeLabel}/${(Array.isArray(fp.job) ? fp.job.join("・") : fp.job)}/${fp.position}`,
+      personaFull: fp,
+      subAgeLabel,
       prompt,
       role: userRole,
       age: userAge,
@@ -438,12 +457,45 @@ export default function App() {
     T("success");
   };
 
-  const saveUserProfile = () => { saveProfile({ age: userAge, role: userRole }); setScreen("persona"); };
-  const resetPersona = () => { setPersona({}); setSubAgeLabel(""); setScreen("persona"); setPrompt(""); setPromptReady(false); };
+  const loadFromHistory = (rec) => {
+    T("tap");
+    setUserAge(rec.age || 40);
+    setUserRole(rec.role || "manager");
+    setSubName(rec.subName || "");
+    setSubAgeLabel(rec.subAgeLabel || "");
+    setPersona(rec.personaFull || {});
+    setPrompt(rec.prompt || "");
+    setPromptReady(true);
+    setScreen("result");
+    T("success");
+  };
+
+  const deleteHistory = (id) => {
+    T("tap");
+    const newH = history.filter(h => h.id !== id);
+    setHistory(newH);
+    saveHistory(newH);
+  };
+
+  const saveUserProfile = () => {
+    T("tap");
+    saveProfile({ age: userAge, role: userRole });
+    setScreen("persona");
+    T("success");
+  };
+
+  const resetPersona = () => {
+    T("tap");
+    setPersona({}); setSubAgeLabel(""); setSubName("");
+    setScreen("persona");
+    setPrompt(""); setPromptReady(false);
+  };
+
+  const goHome = () => { T("tap"); setScreen("home"); };
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column" }}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#ddd}textarea:focus{border-color:${C.borderActive}!important;outline:none}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#ddd}textarea:focus,input:focus{border-color:${C.borderActive}!important;outline:none}`}</style>
 
       {/* Header */}
       <div style={{ padding: "12px 16px 0", borderBottom: `1px solid ${C.border}`, background: C.surface, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", flexShrink: 0 }}>
@@ -454,11 +506,11 @@ export default function App() {
             <div style={{ fontSize: 9, color: C.textMuted }}>ペルソナ×成功循環×マズロー</div>
           </div>
           <button onClick={toggleTap} style={{ padding: "4px 7px", background: tapOn ? C.goldBg : C.surface2, border: `1px solid ${tapOn ? C.borderActive : C.border}`, borderRadius: 7, fontSize: 10, color: tapOn ? C.gold : C.textMuted, cursor: "pointer", fontWeight: 600 }}>{tapOn ? "🔔音ON" : "🔕音OFF"}</button>
-          <button onClick={() => setScreen("home")} style={{ padding: "4px 8px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 10, color: C.textSub, cursor: "pointer" }}>🏠 ホーム</button>
+          <button onClick={goHome} style={{ padding: "4px 8px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 10, color: C.textSub, cursor: "pointer" }}>🏠 ホーム</button>
         </div>
         {screen === "result" && (
           <div style={{ fontSize: 10, color: C.gold, marginBottom: 8, padding: "3px 8px", background: C.goldLight, borderRadius: 6, fontWeight: 600 }}>
-            👤 {subAgeLabel}（{ageRelation?.tag}）/ {persona.industry} / {persona.job}
+            👤 {subName ? `${subName} / ` : ""}{subAgeLabel}（{ageRelation?.tag}）/ {persona.industry} / {(Array.isArray(persona.job) ? persona.job.join("・") : persona.job)}
           </div>
         )}
       </div>
@@ -488,7 +540,7 @@ export default function App() {
             <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>📊 あなたの役職</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {Object.entries(ROLE_HIERARCHY).map(([key, role]) => (
-                <button key={key} onClick={() => setUserRole(key)} style={{
+                <button key={key} onClick={() => { T("tap"); setUserRole(key); }} style={{
                   padding: "14px 16px", borderRadius: 12, border: `2px solid ${userRole === key ? C.borderActive : C.border}`,
                   background: userRole === key ? C.goldLight : C.surface2, cursor: "pointer",
                   display: "flex", alignItems: "center", gap: 12, textAlign: "left",
@@ -507,15 +559,46 @@ export default function App() {
           <button onClick={saveUserProfile} style={{ width: "100%", padding: "14px 0", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 16px rgba(138,96,48,0.3)` }}>
             ✅ 設定を保存して次へ
           </button>
+
+          {/* 履歴アクセス (ホーム下部) */}
+          {history.length > 0 && (
+            <button onClick={() => { T("tap"); setScreen("history"); }} style={{ marginTop: 14, width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              📊 過去の記録を見る（{history.length}件）
+            </button>
+          )}
         </div>
       )}
 
-      {/* ペルソナ設定 */}
+      {/* ペルソナ設定 - 旧仕様順: 名前 → 年齢 → ポジション → 業種 → 職種 → 家族 → 性格 → 状況 */}
       {screen === "persona" && (
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
           <div style={{ fontSize: 12, color: C.textSub, marginBottom: 16, padding: "10px 14px", background: C.goldLight, borderRadius: 10, border: `1px solid ${C.border}`, lineHeight: 1.8 }}>
             あなた：<strong style={{ color: C.goldDim }}>{ROLE_HIERARCHY[userRole]?.label}（{userAge}歳）</strong><br />
             部下のペルソナを設定してください。性格・状況は複数選択可。
+          </div>
+
+          {/* 部下の名前 (旧仕様復元) */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>👤 部下の名前（任意）</div>
+            <input
+              type="text"
+              value={subName}
+              onChange={(e) => setSubName(e.target.value)}
+              placeholder="例：田中、佐藤さん など"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                background: C.surface,
+                border: `1.5px solid ${C.border}`,
+                borderRadius: 10,
+                color: C.text,
+                fontSize: 14,
+                fontFamily: "sans-serif",
+              }}
+            />
+            <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>
+              入力した名前はプロンプトの呼びかけに反映されます（任意）。
+            </div>
           </div>
 
           {/* 部下の年齢 */}
@@ -525,7 +608,7 @@ export default function App() {
               <div style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 10, color: C.red, marginBottom: 5, fontWeight: 600 }}>▲ 年上の部下</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                  {subAgeGroups.above.map(r => <Chip key={r.label} label={r.label} selected={subAgeLabel === r.label} onClick={() => setSubAgeLabel(r.label)} />)}
+                  {subAgeGroups.above.map(r => <Chip key={r.label} label={r.label} selected={subAgeLabel === r.label} onClick={() => { T("tap"); setSubAgeLabel(r.label); }} />)}
                 </div>
               </div>
             )}
@@ -533,7 +616,7 @@ export default function App() {
               <div style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 10, color: C.blue, marginBottom: 5, fontWeight: 600 }}>＝ 同学年・近い年代</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                  {subAgeGroups.same.map(r => <Chip key={r.label} label={r.label} selected={subAgeLabel === r.label} onClick={() => setSubAgeLabel(r.label)} />)}
+                  {subAgeGroups.same.map(r => <Chip key={r.label} label={r.label} selected={subAgeLabel === r.label} onClick={() => { T("tap"); setSubAgeLabel(r.label); }} />)}
                 </div>
               </div>
             )}
@@ -541,10 +624,20 @@ export default function App() {
               <div style={{ marginBottom: 4 }}>
                 <div style={{ fontSize: 10, color: C.green, marginBottom: 5, fontWeight: 600 }}>▼ 年下の部下</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                  {subAgeGroups.below.map(r => <Chip key={r.label} label={r.label} selected={subAgeLabel === r.label} onClick={() => setSubAgeLabel(r.label)} />)}
+                  {subAgeGroups.below.map(r => <Chip key={r.label} label={r.label} selected={subAgeLabel === r.label} onClick={() => { T("tap"); setSubAgeLabel(r.label); }} />)}
                 </div>
               </div>
             )}
+          </div>
+
+          {/* ポジション (役職階層) - 旧仕様順: 業種より先 */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>📊 ポジション（{ROLE_HIERARCHY[userRole]?.subordinateLabel}）</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {positionOpts.map(o => (
+                <Chip key={o} label={o} selected={persona.position === o} onClick={() => togglePersona("position", o, false)} small />
+              ))}
+            </div>
           </div>
 
           {/* 業種 */}
@@ -597,16 +690,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* ポジション */}
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>📊 ポジション</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {positionOpts.map(o => (
-                <Chip key={o} label={o} selected={persona.position === o} onClick={() => togglePersona("position", o, false)} small />
-              ))}
-            </div>
-          </div>
-
           <button onClick={generatePrompt} disabled={!isReady} style={{
             width: "100%", padding: "14px 0", background: isReady ? `linear-gradient(135deg,${C.gold},${C.goldDim})` : C.surface3,
             border: "none", borderRadius: 14, color: isReady ? "#fff" : C.textMuted, fontSize: 15, fontWeight: 700, cursor: isReady ? "pointer" : "not-allowed"
@@ -628,22 +711,49 @@ export default function App() {
             <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.8 }}>
               1. 上のプロンプトをコピーします<br />
               2. ChatGPT/Claude/Gemini に貼り付けます<br />
-              3. AIの回答をコピーして下に貼り付けます<br />
+              3. AIの回答を参考に1on1を実施します<br />
               4. 「履歴に保存」で管理できます
             </div>
           </div>
 
-          <button onClick={resetPersona} style={{ width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 700 }}>
+          <button onClick={saveToHistory} style={{ width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 700, marginBottom: 8, cursor: "pointer" }}>
+            💾 履歴に保存
+          </button>
+
+          <button onClick={resetPersona} style={{ width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
             ← ペルソナを変更
           </button>
         </div>
       )}
 
-      {/* 履歴 */}
-      {screen === "home" && history.length > 0 && (
-        <div style={{ padding: "12px 16px", borderTop: `1px solid ${C.border}`, background: C.surface }}>
-          <button onClick={() => setScreen("history")} style={{ width: "100%", padding: "10px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 12, fontWeight: 600 }}>
-            📊 過去の記録（{history.length}件）
+      {/* 履歴一覧 (旧仕様復元: 過去保存と呼び出し) */}
+      {screen === "history" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.goldDim, marginBottom: 12 }}>📊 過去の記録</div>
+          {history.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 12 }}>記録はまだありません。</div>
+          ) : (
+            <>
+              {history.slice().reverse().map((rec) => (
+                <div key={rec.id || rec.date} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4 }}>{rec.date}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.goldDim, marginBottom: 4 }}>
+                    {rec.subName ? `${rec.subName} ・ ` : ""}{rec.persona}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button onClick={() => loadFromHistory(rec)} style={{ flex: 1, padding: "8px 0", background: C.gold, border: "none", borderRadius: 8, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      🔄 呼び出す
+                    </button>
+                    <button onClick={() => deleteHistory(rec.id)} style={{ padding: "8px 12px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+          <button onClick={goHome} style={{ width: "100%", padding: "12px 0", marginTop: 8, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            ← ホームに戻る
           </button>
         </div>
       )}
