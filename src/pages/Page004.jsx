@@ -103,14 +103,8 @@ const saveHistory = (h) => { try { localStorage.setItem(HISTORY_KEY, JSON.string
 // δ方式: プロンプトビルダー (API呼び出しゼロ)
 // ───────────────────────────────────────────────────────────
 
-const buildAnalysisPrompt = (userName, answers, mode = "deep") => {
+const buildAnalysisPrompt = (userName, answers) => {
   const userBlock = `${userName ? `【名前】${userName}\n\n` : ""}${QUESTIONS.map(q => `【${q.title}】\n${answers[q.id] || "（未回答）"}`).join("\n\n")}`;
-
-  const modeInstructions = {
-    deep: `1200〜1500字で深く詳しく分析してください。途中で終わらないこと。`,
-    simple: `400〜600字で要点だけ簡潔に分析してください。読みやすさ最優先。`,
-    poetic: `800〜1000字で詩的・物語的に表現してください。比喩を使い、心に響く言葉で。`
-  };
 
   return `あなたは「メンタル・デトックスの専門家」です。以下のユーザーの回答を踏まえ、深く分析してください。
 
@@ -128,7 +122,7 @@ const buildAnalysisPrompt = (userName, answers, mode = "deep") => {
 ### 【思考の書き換え】
 最もネガティブな思考パターンをより現実的な視点に書き換える。
 
-${modeInstructions[mode]}
+1200〜1500字で深く詳しく分析してください。途中で終わらないこと。
 
 ──────────────────────────
 ${userBlock}
@@ -270,7 +264,6 @@ export default function App() {
   const [currentAnswer, setCurrentAnswer] = useState("");
 
   // δ方式: 生成されたプロンプトと、AIから貼り付けてもらった結果
-  const [mode, setMode] = useState("deep"); // deep | simple | poetic
   const [analysisPrompt, setAnalysisPrompt] = useState("");
   const [analysisText, setAnalysisText] = useState(""); // ユーザーがAIから貼り付け
   const [analysisSaved, setAnalysisSaved] = useState(false);
@@ -297,16 +290,10 @@ export default function App() {
   };
 
   const generatePromptAndShow = (finalAnswers) => {
-    const p = buildAnalysisPrompt(userName, finalAnswers, mode);
+    const p = buildAnalysisPrompt(userName, finalAnswers);
     setAnalysisPrompt(p);
     setScreen("result");
     T("success");
-  };
-
-  const regeneratePromptWithMode = (newMode) => {
-    setMode(newMode);
-    setAnalysisPrompt(buildAnalysisPrompt(userName, answers, newMode));
-    T("tap");
   };
 
   const saveAnalysisToHistory = () => {
@@ -317,7 +304,6 @@ export default function App() {
       userName: userName || "匿名",
       preview: analysisText.slice(0, 60),
       analysis: analysisText,
-      mode,
     };
     const newH = [rec, ...history].slice(0, 30);
     setHistory(newH); saveHistory(newH);
@@ -435,15 +421,6 @@ export default function App() {
           <div style={{ fontSize: 14, fontWeight: 700, color: C.gold, marginBottom: 4 }}>✨ 分析プロンプトが生成されました</div>
           <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>下のプロンプトをコピーして、お使いのAI(ChatGPT等)に貼り付けてください</div>
 
-          {/* モード切替 */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-            {[{ k: "deep", l: "🌊 深い分析" }, { k: "simple", l: "📝 シンプル" }, { k: "poetic", l: "🎨 詩的" }].map(m => (
-              <button key={m.k} onClick={() => regeneratePromptWithMode(m.k)} style={{ flex: 1, padding: "8px 0", background: mode === m.k ? `linear-gradient(135deg,${C.gold},${C.goldDim})` : C.surface, border: `1px solid ${mode === m.k ? "transparent" : C.border}`, borderRadius: 9, color: mode === m.k ? "#fff" : C.textSub, fontSize: 11, fontWeight: mode === m.k ? 700 : 500 }}>
-                {m.l}
-              </button>
-            ))}
-          </div>
-
           <PromptCard title="📋 メイン分析プロンプト" prompt={analysisPrompt} />
 
           <ResultPasteBox value={analysisText} onChange={setAnalysisText} onSave={saveAnalysisToHistory} saved={analysisSaved} />
@@ -523,3 +500,4 @@ export default function App() {
     </div>
   );
 }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
