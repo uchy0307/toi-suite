@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 
 // ───────────────────────────────────────────────────────────
-// 1on1マスターAI (App.jsx) - δ方式 v1.0
-// API呼び出しゼロ。プロンプトを生成→ユーザーが自分のAIで実行
+// 1on1マスターAI - 旧仕様復元版 (ペルソナ6次元)
+// δ方式実装: API呼び出しゼロ、プロンプト生成のみ
 // ───────────────────────────────────────────────────────────
 
 window._tapOn = typeof window._tapOn !== "undefined" ? window._tapOn : true;
@@ -38,6 +38,7 @@ function T(type = "tap") {
     }
   } catch (e) {}
 }
+
 function doSpeak(text) {
   try {
     window.speechSynthesis.cancel();
@@ -50,6 +51,7 @@ function doSpeak(text) {
     window._speaking = true;
   } catch (e) {}
 }
+
 function doStopSpeak() { try { window.speechSynthesis.cancel(); window._speaking = false; } catch (e) {} }
 
 const C = {
@@ -60,133 +62,269 @@ const C = {
   textSub: "#3a3028", textMuted: "#6a5e50",
   green: "#1a4a30", greenLight: "#d0eedd",
   blue: "#1a4a6a", blueLight: "#d0e0ee",
+  red: "#a02018", purple: "#4a1890",
+  userBubble: "#1a3828", userText: "#d8f0e0",
 };
 
-const QUESTIONS = [
-  {
-    id: "q1",
-    title: "最近の関係性",
-    q: "1on1する相手との最近の関係性、距離感はどんな感じですか?",
-    placeholder: "例：部下で最近昇進して距離が出た、パートナーと最近仕事の話が少ない..."
+// ============================================================
+// ペルソナ定義 (6次元)
+// ============================================================
+
+const ROLE_HIERARCHY = {
+  exec: {
+    label: "役員", icon: "👑",
+    desc: "取締役・執行役員・C suite",
+    subordinateLabel: "直属部下のポジション",
+    subordinateOpts: ["シニアマネージャー・部長クラス", "マネージャー・課長クラス", "専門職・エキスパート"],
   },
-  {
-    id: "q2",
-    title: "相手の状態",
-    q: "相手は今どんな状況・気持ちにあると感じていますか?",
-    placeholder: "例：重たいプロジェクトに取り組んでいて疲れている、新しいチャレンジに不安がある..."
+  senior: {
+    label: "シニアマネージャー", icon: "🏛",
+    desc: "部長・シニアマネージャー・グループ長",
+    subordinateLabel: "直属部下のポジション",
+    subordinateOpts: ["マネージャー・課長クラス", "リーダー・主任クラス", "ベテラン・中堅社員"],
   },
-  {
-    id: "q3",
-    title: "対話の目的",
-    q: "この1on1で達成したいことは何ですか?(評価/共感/育成/問題解決等)",
-    placeholder: "例：成長を認める、困っていることを聞き出す、キャリアについて考える..."
+  manager: {
+    label: "マネージャー", icon: "🎯",
+    desc: "課長・マネージャー・チームリーダー",
+    subordinateLabel: "部下のポジション",
+    subordinateOpts: ["新入社員（1年目）", "若手（2〜4年目）", "中堅（5〜9年目）", "シニア・主任クラス", "もうすぐ管理職", "牽引層・リーダー候補", "ベテラン・専門職（非管理）"],
   },
-  {
-    id: "q4",
-    title: "気がかりな点",
-    q: "触れにくいけれど扱いたいテーマはありますか?",
-    placeholder: "例：最近のパフォーマンス低下、以前の約束が守られていないこと..."
+};
+
+const PERSONA = {
+  industry: {
+    label: "業種", icon: "🏢", multi: false,
+    opts: [
+      "自動車・輸送機器", "電機・精密機器", "化学・素材", "食品・飲料", "建設・ゼネコン",
+      "不動産・デベロッパー", "プラント・設備", "印刷・出版",
+      "ITシステム・SIer", "Web・アプリ開発", "AI・データサイエンス", "半導体・ハードウェア",
+      "通信・キャリア", "ゲーム・エンタメIT",
+      "総合商社", "専門商社", "百貨店・量販店", "EC・通販", "コンビニ・チェーン", "アパレル・ファッション",
+      "総合病院・クリニック", "調剤薬局", "介護・福祉施設", "医療機器メーカー",
+      "銀行・信託", "証券・投資", "生損保", "ベンチャーキャピタル", "会計・税務事務所",
+      "居酒屋・レストラン", "ホテル・旅館", "航空・旅行", "ブライダル",
+      "小学・中学・高校", "大学・研究機関", "学習塾・予備校",
+      "国家公務員", "地方公務員", "独立行政法人", "NPO・社会福祉法人",
+      "物流・運送", "倉庫・3PL", "広告・PR", "コンサルティング", "法律・特許事務所", "人材・派遣",
+    ],
   },
-  {
-    id: "q5",
-    title: "理想の終わり方",
-    q: "1on1終了時にどんな空気・状態になっていたら成功ですか?",
-    placeholder: "例：相手が少しスッキリした顔で帰る、次のアクションが明確になっている..."
-  }
+  job: {
+    label: "職種", icon: "💼", multi: true,
+    opts: [
+      "法人営業（大手向け）", "法人営業（中小向け）", "ルート営業", "代理店営業", "海外営業",
+      "インサイドセールス", "カウンターセールス",
+      "フロントエンドエンジニア", "バックエンドエンジニア", "インフラ・SRE", "データエンジニア",
+      "AIエンジニア・ML", "QA・テスト", "PMエンジニア", "組み込みエンジニア",
+      "プロダクトマネージャー", "プロジェクトマネージャー", "ITコンサルタント",
+      "Webデザイナー", "UXデザイナー", "グラフィックデザイナー",
+      "総務・庶務", "経理・会計", "人事・採用", "法務・コンプライアンス", "広報・IR",
+      "マーケター・デジタルマーケ", "商品企画", "事業企画",
+      "生産管理", "品質管理・QC", "購買・調達", "物流管理", "施工管理", "現場監督",
+      "医師・研修医", "看護師", "薬剤師", "理学・作業療法士", "介護士・ケアマネ",
+      "小売販売員", "店長", "飲食ホール・調理", "カスタマーサポート",
+      "研究員・研究開発", "教師・講師", "コンサルタント", "税理士・会計士補",
+    ],
+  },
+  family: {
+    label: "家族構成", icon: "🏠", multi: false,
+    opts: [
+      "独身・一人暮らし", "独身・実家",
+      "既婚・子なし", "既婚・子育て中（乳幼児）", "既婚・子育て中（小中高）",
+      "既婚・子供は大学生", "既婚・子供は独立済み",
+      "シングルペアレント", "介護中", "育休・産休復帰直後",
+    ],
+  },
+  personality: {
+    label: "性格・タイプ", icon: "🧠", multi: true,
+    opts: [
+      "真面目・完璧主義", "完璧にできるまで報告しない", "受け身・指示待ち",
+      "仕事に意味・意義を求める", "変化を嫌い現状維持志向",
+      "内向的・慎重派", "空気を読みすぎて本音を言えない", "優秀だが孤立しがち",
+      "チームより個人プレー優先", "コミュ力は高いが継続力が弱い",
+      "感情的になりやすい", "批判に過剰に傷つく", "承認欲求がとても強い",
+      "素直だが自信がない", "表面上は元気だが無理している",
+      "反発しやすい・自己主張強め", "プライドが高い・負けず嫌い",
+      "明るいが詰めが甘い", "自己犠牲型・断れない",
+      "やる気が見えない",
+    ],
+  },
+  issue: {
+    label: "最近の状況・悩み", icon: "⚡", multi: true,
+    opts: [
+      "メンタル不調の兆候がある", "残業・疲弊が続いている", "業務量過多で品質が落ちている",
+      "転職を考えていそう", "昇進・キャリアで悩んでいる", "スキルアップへの焦り",
+      "同期との差に焦りを感じている", "評価制度への不満・不信感",
+      "人間関係でトラブル", "チームの雰囲気が悪化している", "上司との関係に距離感",
+      "会社の方針・文化への不満", "急な異動・配置転換で戸惑い",
+      "モチベが急落している", "目標が見えず停滞", "ミスが増えている",
+      "リモートで孤立しがち", "プライベートで問題がある", "育休・産休復帰後で不安定",
+      "特に問題はなさそう",
+    ],
+  },
+};
+
+const PERSONA_KEYS = Object.keys(PERSONA);
+
+const AGE_RANGES = [
+  { label: "20〜24歳", mid: 22 }, { label: "25〜29歳", mid: 27 },
+  { label: "30〜34歳", mid: 32 }, { label: "35〜39歳", mid: 37 },
+  { label: "40〜44歳", mid: 42 }, { label: "45〜49歳", mid: 47 },
+  { label: "50〜54歳", mid: 52 }, { label: "55歳以上", mid: 57 },
 ];
 
-const HISTORY_KEY = "app01_history_v1";
-const loadHistory = () => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; } };
-const saveHistory = (h) => { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-30))); } catch {} };
+// ============================================================
+// 診断ロジック
+// ============================================================
 
-// ───────────────────────────────────────────────────────────
-// δ方式: プロンプトビルダー (API呼び出しゼロ)
-// ───────────────────────────────────────────────────────────
+const getAgeRelation = (userAge, subAge) => {
+  const diff = subAge - userAge;
+  if (diff >= 5) return { label: "年上（5歳以上）", tag: "年上" };
+  if (diff >= 1) return { label: "年上（1〜4歳）", tag: "少し年上" };
+  if (diff === 0) return { label: "同学年・同年代", tag: "同年代" };
+  if (diff >= -4) return { label: "年下（1〜4歳）", tag: "少し年下" };
+  return { label: "年下（5歳以上）", tag: "年下" };
+};
 
-const buildAnalysisPrompt = (userName, answers, mode = "deep") => {
-  const userBlock = `${userName ? `【対話者名】${userName}\n\n` : ""}${QUESTIONS.map(q => `【${q.title}】\n${answers[q.id] || "（未回答）"}`).join("\n\n")}`;
+const SUCCESS_CYCLE = {
+  diagnose: (issues, personality) => {
+    const s = [...issues, ...personality].join(" ");
+    if (/人間関係|ハラスメント|距離感|雰囲気/.test(s))
+      return { label: "関係の質", color: C.red, desc: "信頼関係が損なわれています。まず「関係の質」の回復が最優先。", action: "評価・批判ゼロで話を聞く場を週1回作る" };
+    if (/モチベ|意義|方針|評価制度|停滞|やる気/.test(s))
+      return { label: "思考の質", color: C.blue, desc: "仕事の意味・方向性が見えなくなっています。「なぜ」を一緒に言語化することが鍵。", action: "「なぜこの仕事が大切か」を一緒に言語化する" };
+    if (/ミス|疲弊|残業|品質|スキル|完璧|断れない/.test(s))
+      return { label: "行動の質", color: C.gold, desc: "行動量は十分でも質や方向性がずれています。「やめること」を決めるのが先。", action: "「やることリスト」から「やめることリスト」を作る" };
+    if (/転職|キャリア|昇進|差に焦り/.test(s))
+      return { label: "結果の質", color: C.green, desc: "結果への焦りが思考・行動に影響しています。良い循環の入口は「関係の質」。", action: "小さな成功体験を作り、承認して伝える" };
+    return { label: "バランス良好", color: C.green, desc: "現時点では大きな問題はなさそうです。さらに「関係の質」を深めましょう。", action: "今日の話題を翌日フォローする一言を添える" };
+  },
+};
 
-  const modeInstructions = {
-    deep: `1200〜1500字で深く詳しく分析してください。途中で終わらないこと。`,
-    simple: `400〜600字で要点だけ簡潔に分析してください。読みやすさ最優先。`,
-    poetic: `800〜1000字で詩的・物語的に表現してください。比喩を使い、心に響く言葉で。`
+const MASLOW = {
+  diagnose: (issues, personality, family) => {
+    const s = [...issues, ...personality, family].join(" ");
+    if (/メンタル|疲弊|残業|プライベート|介護|育休/.test(s))
+      return { level: 2, name: "安全欲求", desc: "心身の安全が脅かされています。「無理しなくていい」を先に伝えて。" };
+    if (/人間関係|孤立|ハラスメント|雰囲気|距離感/.test(s))
+      return { level: 3, name: "所属・愛情欲求", desc: "チームへの帰属感が低下。「ここに居ていい」という安心感を作ることが最優先。" };
+    if (/承認欲求|評価|差に焦り|プライド|モチベ/.test(s))
+      return { level: 4, name: "承認欲求", desc: "認められたい欲求が満たされていません。「見ている・評価している」を具体的な言葉で。" };
+    if (/意義|キャリア|昇進|スキル|転職/.test(s))
+      return { level: 5, name: "自己実現欲求", desc: "成長・実現への欲求が高まっています。キャリアビジョンを一緒に描きましょう。" };
+    return { level: 3, name: "所属・愛情欲求", desc: "基本欲求は満たされています。所属感をさらに高めると自己実現への扉が開きます。" };
+  },
+};
+
+// ============================================================
+// δ方式プロンプト生成
+// ============================================================
+
+const buildPersonaPrompt = (p, userRole, userAge) => {
+  const cycle = SUCCESS_CYCLE.diagnose(p.issue, p.personality);
+  const maslow = MASLOW.diagnose(p.issue, p.personality, p.family);
+  const ageRel = p.ageRelation;
+
+  const roleNote = userRole === "exec"
+    ? `⚠️ 役員として接する場合：圧力をかけないよう意識的に「聴く側」に徹する。`
+    : userRole === "senior"
+    ? `⚠️ 部長として接する場合：部下が「本音を言える場」かどうかを常に意識する。`
+    : ``;
+
+  const openMap = {
+    "新入社員（1年目）": `「最近どう？仕事、少し慣れてきた？正直なところ聞かせて」`,
+    "若手（2〜4年目）": `「最近どう？ぶっちゃけ気になってることある？」`,
+    "中堅（5〜9年目）": `「最近どう？仕事に限らず、何か感じてることある？」`,
+    "シニア・主任クラス": `「最近チームどう見てる？正直な感想聞かせて」`,
+    "もうすぐ管理職": `「最近、仕事全体を見てどう感じてる？率直に」`,
+    "牽引層・リーダー候補": `「チームのこと、最近どう見てる？正直なところ」`,
+    "ベテラン・専門職（非管理）": `「最近、仕事で気になってることある？何でも」`,
   };
+  const opening = openMap[p.position] || `「最近どう？何か気になってることある？」`;
 
-  return `あなたは1on1ミーティングのプロコーチです。以下の状況から、相手との関係性を深め、対話の目的を達成するための具体的な問いかけ8つと、注意すべき地雷ポイント3つを提示してください。
+  const ngList = [];
+  if (p.personality.includes("反発しやすい・自己主張強め")) ngList.push("「言い訳しないで」→ 関係の質が一気に崩壊");
+  if (p.personality.includes("やる気が見えない")) ngList.push("「なんでやる気ないの？」→ 詰問で関係が悪化");
+  if (p.personality.includes("表面上は元気だが無理している")) ngList.push("「元気そうだね」で終わる→ 無理を見抜けず機会損失");
+  if (p.issue.includes("メンタル不調の兆候がある")) ngList.push("「気合いで乗り越えろ」→ 最悪の一言");
+  if (p.personality.includes("批判に過剰に傷つく")) ngList.push("「それは違う」と即否定→ 心を閉ざすトリガー");
+  if (ngList.length < 3) ngList.push("評価・批判から入る→ 部下が防御的になり本音が出なくなる");
 
-### 【具体的な問いかけ8つ】
-各質問は「相手を引き出し、本当の気持ちを引き上げる」ものを選んでください。テンプレート的ではなく、この状況固有のものを。
+  return `【1on1ペルソナ分析】
+あなた: ${userRole === "exec" ? "役員" : userRole === "senior" ? "シニアマネージャー" : "マネージャー"}（${userAge}歳）
+部下: ${p.ageLabel} / ${p.industry} / ${p.job} / ${p.position}（${ageRel}）
+家族: ${p.family}
+性格: ${p.personality.join("・")}
+状況: ${p.issue.join("・")}
+${roleNote ? `\n${roleNote}` : ""}
 
-### 【注意すべき地雷ポイント3つ】
-この人間関係・この状況では踏むと関係が壊れる、或いは相手が引き籠もるテーマを3つ抽出してください。
+━━━ 成功循環モデル診断 ━━━
+課題ステージ：【${cycle.label}】
+${cycle.desc}
+今週の一手：${cycle.action}
 
-### 【対話の流れ設計】
-開始から終了までの流れ(導入→深掘り→課題抽出→行動化)をざっくり示してください。
+━━━ マズロー欲求段階診断 ━━━
+優先欲求：【${maslow.name}（第${maslow.level}段階）】
+${maslow.desc}
 
-${modeInstructions[mode]}
+━━━ 今日の1on1 トーク設計 ━━━
 
-──────────────────────────
-${userBlock}
-──────────────────────────`;
+▶ Opening
+${opening}
+→ 評価せず、まず「聴く」姿勢を先に見せる
+
+▶ Main（核心の問いかけ）
+${[
+  `「最近、仕事をしていて"これは意味があるな"と思える瞬間、ありますか？」`,
+  `「もし今の仕事で一つだけ変えられるとしたら、何を変えたいですか？」`,
+  `「自分が大切にしていることと、今の仕事がどう繋がっているか、感じていることはありますか？」`,
+  `「私に足りていることや、こうしてほしいってことがあったら、聞かせてもらえますか？」`,
+  `「ここまでの話を聞いて、あなたが一番やりたいことって何だと思いますか？」`
+].join("\n")}
+
+▶ Closing
+「話してくれてありがとう。来週また聞かせて」
+→ 約束が「関係の質」を積み上げる
+
+━━━ 絶対やってはいけないこと ━━━
+${ngList.slice(0, 4).map(n => `❌ ${n}`).join("\n")}
+
+━━━ このプロンプトの使い方 ━━━
+このペルソナ分析をあなたのAI（Claude / ChatGPT / Gemini）に渡して、以下を指示してください：
+
+【AI指示】
+「この部下ペルソナの分析を踏まえ、この1on1で効果的な問いかけ5つ と、注意すべき地雷ポイント2つ を400字で教えてください。また、成功循環モデルとマズロー理論を踏まえた、この人への接し方のコツを短く3点提示してください。」`;
 };
 
-const buildPerspectivePrompt = (userName, analysisText) => {
-  return `あなたは「対話スキル分析の専門家」です。以下の1on1設計案を踏まえ、3つの異なる視点からその対話を見たときに何が見えるかを描写してください。
+// ============================================================
+// ストレージ
+// ============================================================
 
-### 👫 相手の視点
-${userName ? userName + "さんが" : "この対話の相手が"}この1on1を振り返ったときに感じることは？「この人(対話者)のどんなところに心が開いたか」「何を感じて帰ったか」2〜3段落。
+const HISTORY_KEY = "app001_history_v1";
+const loadHistory = () => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; } };
+const saveHistory = (h) => { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-50))); } catch {} };
 
-### 🔮 第三者(観察者)の視点
-第三者として両者の対話を見た時、この1on1の成功要因は何か？どうしてこの設計なら相手は心を開くのか？心理学的視点で2〜3段落。
+const PROFILE_KEY = "app001_profile_v1";
+const loadProfile = () => { try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "null"); } catch { return null; } };
+const saveProfile = (p) => { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {} };
 
-### 💡 3ヶ月後の視点
-この1on1の後3ヶ月経った時、「あの対話があったから今がある」と感じられるような成果は？関係性の変化、相手の成長2〜3段落。
-
-各視点は語りかける形式で。鋭く、温かく、読んで「確かに…」と思わせる内容に。合計900〜1200字。途中で終わらないこと。
-
-──────────────────────────
-【元の分析結果】
-${(analysisText || "").slice(0, 1200)}
-──────────────────────────`;
-};
-
-const buildDeepDivePrompt = (userName, analysisText, theme) => {
-  return `あなたは「1on1スキルの専門家」です。以下の分析結果を踏まえ、特定のテーマについて深掘りした追加分析を行ってください。
-
-### 深掘りテーマ
-${theme}
-
-### 出力フォーマット
-1. このテーマがこの1on1でどう活かせるか(3〜4文)
-2. 具体的な問いかけワーディングを3パターン(「〜のは？」という形式で)
-3. よくある失敗パターンを1つ(そしてその対策も)
-4. 今日から始められる小さな練習を1つ
-
-合計600〜800字で。
-
-──────────────────────────
-${userName ? "【相手名】" + userName + "\n\n" : ""}【元の分析結果】
-${(analysisText || "").slice(0, 1000)}
-──────────────────────────`;
-};
-
-const buildHistorySummaryPrompt = (history) => {
-  const recent = history.slice(0, 5);
-  return `あなたは継続的な1on1スキル向上をサポートするコーチです。以下は同じ人の過去${recent.length}回分のセッション設計履歴です。
-
-この人の成長・パターン・繰り返されている課題・今後の改善点を200〜300字程度でサマリしてください。
-時系列を意識して、「最初は〜だったが、今は〜になった」という変化の流れが分かるように書いてください。
-
-──────────────────────────
-${recent.map((h, i) => `【${i + 1}セッション目 ${h.date}】\n${(h.analysis || h.preview || "").slice(0, 400)}`).join("\n\n---\n\n")}
-──────────────────────────`;
-};
-
-// ───────────────────────────────────────────────────────────
+// ============================================================
 // UI Components
-// ───────────────────────────────────────────────────────────
+// ============================================================
 
-const PromptCard = ({ title, prompt, onCopied }) => {
+const Chip = ({ label, selected, onClick, multi, small }) => (
+  <button onClick={onClick} style={{
+    padding: small ? "5px 10px" : "6px 12px",
+    borderRadius: 20, fontSize: small ? 11 : 11.5, cursor: "pointer",
+    background: selected ? C.goldLight : C.surface2,
+    border: `1.5px solid ${selected ? C.borderActive : C.border}`,
+    color: selected ? C.goldDim : C.textSub,
+    fontWeight: selected ? 700 : 400, transition: "all 0.15s", whiteSpace: "nowrap",
+  }}>
+    {selected && multi ? "✓ " : ""}{label}
+  </button>
+);
+
+const PromptCard = ({ title, prompt, onCopy }) => {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     T("send");
@@ -199,7 +337,6 @@ const PromptCard = ({ title, prompt, onCopied }) => {
       document.execCommand("copy"); document.body.removeChild(el);
     }
     setCopied(true); T("success");
-    if (onCopied) onCopied();
     setTimeout(() => setCopied(false), 2500);
   };
   return (
@@ -210,37 +347,16 @@ const PromptCard = ({ title, prompt, onCopied }) => {
           {copied ? "✅ コピー済" : "📋 コピー"}
         </button>
       </div>
-      <div style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, fontSize: 11.5, lineHeight: 1.85, color: C.text, whiteSpace: "pre-wrap", maxHeight: 280, overflowY: "auto" }}>
+      <div style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, fontSize: 11.5, lineHeight: 1.85, color: C.text, whiteSpace: "pre-wrap", maxHeight: 320, overflowY: "auto", fontFamily: "monospace" }}>
         {prompt}
-      </div>
-      <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 8, lineHeight: 1.6 }}>
-        ☝️ コピーして ChatGPT / Claude / Gemini に貼り付けてください。結果は下のボックスに貼り付ければ履歴に保存されます。
       </div>
     </div>
   );
 };
 
-const ResultPasteBox = ({ value, onChange, onSave, saved }) => (
-  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
-    <div style={{ fontSize: 11, fontWeight: 700, color: C.textSub, marginBottom: 8 }}>📥 AIから返ってきた結果を貼り付け</div>
-    <textarea
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder="ここにAIの回答をコピー&ペーストしてください..."
-      rows={5}
-      style={{ width: "100%", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "10px 12px", fontSize: 12, resize: "vertical", lineHeight: 1.7, fontFamily: "sans-serif", marginBottom: 8 }}
-    />
-    <button
-      onClick={onSave}
-      disabled={!value.trim()}
-      style={{ width: "100%", padding: "10px 0", background: !value.trim() ? C.surface3 : saved ? C.greenLight : `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: `1px solid ${saved ? C.green : "transparent"}`, borderRadius: 10, color: !value.trim() ? C.textMuted : saved ? C.green : "#fff", fontSize: 12, fontWeight: 700 }}
-    >
-      {saved ? "✅ 履歴に保存しました" : "💾 履歴に保存"}
-    </button>
-  </div>
-);
-
-// ───────────────────────────────────────────────────────────
+// ============================================================
+// Main Component
+// ============================================================
 
 export default function App() {
   useEffect(() => {
@@ -248,271 +364,287 @@ export default function App() {
     document.documentElement.style.background = "#f0ede8";
   }, []);
 
+  const savedProfile = loadProfile();
+  const [screen, setScreen] = useState("home");
   const [tapOn, setTapOn] = useState(true);
   const tapOnRef = useRef(true);
   const toggleTap = () => { const next = !tapOnRef.current; tapOnRef.current = next; setTapOn(next); window._tapOn = next; };
 
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const toggleSpeak = (text) => {
-    if (window._speaking) { doStopSpeak(); setIsSpeaking(false); }
-    else if (text) { doSpeak(text); setIsSpeaking(true); }
-  };
+  // ユーザープロフィール
+  const [userAge, setUserAge] = useState(savedProfile?.age || 40);
+  const [userRole, setUserRole] = useState(savedProfile?.role || "manager");
 
-  const [screen, setScreen] = useState("home");
-  const [userName, setUserName] = useState("");
-  const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState({});
-  const [currentAnswer, setCurrentAnswer] = useState("");
+  // ペルソナ
+  const [persona, setPersona] = useState({});
+  const [subAgeLabel, setSubAgeLabel] = useState("");
 
-  // δ方式: 生成されたプロンプトと、AIから貼り付けてもらった結果
-  const [mode, setMode] = useState("deep"); // deep | simple | poetic
-  const [analysisPrompt, setAnalysisPrompt] = useState("");
-  const [analysisText, setAnalysisText] = useState(""); // ユーザーがAIから貼り付け
-  const [analysisSaved, setAnalysisSaved] = useState(false);
-
-  const [perspPrompt, setPerspPrompt] = useState("");
-
-  const [deepTheme, setDeepTheme] = useState("");
-  const [deepPrompt, setDeepPrompt] = useState("");
-
+  // 履歴
   const [history, setHistory] = useState(loadHistory());
   const [selectedHistory, setSelectedHistory] = useState(null);
-  const [summaryPrompt, setSummaryPrompt] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [promptReady, setPromptReady] = useState(false);
 
-  const currentQ = QUESTIONS[step];
-
-  const submitAnswer = () => {
-    T("tap");
-    if (!currentAnswer.trim()) return;
-    const newAnswers = { ...answers, [currentQ.id]: currentAnswer };
-    setAnswers(newAnswers);
-    setCurrentAnswer("");
-    if (step < QUESTIONS.length - 1) setStep(s => s + 1);
-    else { generatePromptAndShow(newAnswers); }
+  const togglePersona = (key, val, multi) => {
+    setPersona(prev => {
+      if (multi) { const c = prev[key] || []; return { ...prev, [key]: c.includes(val) ? c.filter(v => v !== val) : [...c, val] }; }
+      return { ...prev, [key]: prev[key] === val ? undefined : val };
+    });
   };
 
-  const generatePromptAndShow = (finalAnswers) => {
-    const p = buildAnalysisPrompt(userName, finalAnswers, mode);
-    setAnalysisPrompt(p);
-    setScreen("result");
+  const getSubAgeGroups = () => {
+    const above = AGE_RANGES.filter(r => r.mid > userAge + 2);
+    const same = AGE_RANGES.filter(r => Math.abs(r.mid - userAge) <= 4);
+    const below = AGE_RANGES.filter(r => r.mid < userAge - 2);
+    return { above, same, below };
+  };
+
+  const subAgeGroups = getSubAgeGroups();
+  const selectedAgeRange = AGE_RANGES.find(r => r.label === subAgeLabel);
+  const ageRelation = selectedAgeRange ? getAgeRelation(userAge, selectedAgeRange.mid) : null;
+  const positionOpts = ROLE_HIERARCHY[userRole]?.subordinateOpts || PERSONA_KEYS;
+
+  const isReady = PERSONA_KEYS.every(k => {
+    const d = PERSONA[k]; const v = persona[k];
+    return d.multi ? v && v.length > 0 : !!v;
+  }) && subAgeLabel && persona.position;
+
+  const buildFullPersona = () => ({
+    ...persona,
+    ageLabel: subAgeLabel,
+    ageRelation: ageRelation?.tag || "年下",
+    position: persona.position,
+  });
+
+  const generatePrompt = () => {
+    const fp = buildFullPersona();
+    const p = buildPersonaPrompt(fp, userRole, userAge);
+    setPrompt(p);
+    setPromptReady(true);
     T("success");
   };
 
-  const regeneratePromptWithMode = (newMode) => {
-    setMode(newMode);
-    setAnalysisPrompt(buildAnalysisPrompt(userName, answers, newMode));
-    T("tap");
-  };
-
-  const saveAnalysisToHistory = () => {
-    if (!analysisText.trim()) return;
+  const saveToHistory = () => {
+    const fp = buildFullPersona();
     const rec = {
       date: new Date().toLocaleDateString("ja-JP"),
-      time: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-      userName: userName || "匿名",
-      preview: analysisText.slice(0, 60),
-      analysis: analysisText,
-      mode,
+      persona: `${subAgeLabel}/${fp.job}/${fp.position}`,
+      prompt,
+      role: userRole,
+      age: userAge,
     };
-    const newH = [rec, ...history].slice(0, 30);
-    setHistory(newH); saveHistory(newH);
-    setAnalysisSaved(true); T("success");
-    setTimeout(() => setAnalysisSaved(false), 2500);
+    const newH = [...history, rec];
+    setHistory(newH);
+    saveHistory(newH);
+    T("success");
   };
 
-  const generatePerspective = () => {
-    T("tap");
-    if (!analysisText.trim()) {
-      alert("先に上のテキストエリアにAIの分析結果を貼り付けてください");
-      return;
-    }
-    setPerspPrompt(buildPerspectivePrompt(userName, analysisText));
-  };
-
-  const generateDeepDive = () => {
-    T("tap");
-    if (!analysisText.trim()) {
-      alert("先に上のテキストエリアにAIの分析結果を貼り付けてください");
-      return;
-    }
-    if (!deepTheme.trim()) {
-      alert("深掘りしたいテーマを入力してください");
-      return;
-    }
-    setDeepPrompt(buildDeepDivePrompt(userName, analysisText, deepTheme));
-  };
-
-  const generateHistorySummary = () => {
-    T("tap");
-    setSummaryPrompt(buildHistorySummaryPrompt(history));
-  };
-
-  const resetAll = () => {
-    setScreen("home"); setStep(0); setAnswers({}); setCurrentAnswer("");
-    setAnalysisPrompt(""); setAnalysisText(""); setAnalysisSaved(false);
-    setPerspPrompt(""); setDeepTheme(""); setDeepPrompt("");
-    setSummaryPrompt(""); setSelectedHistory(null);
-  };
+  const saveUserProfile = () => { saveProfile({ age: userAge, role: userRole }); setScreen("persona"); };
+  const resetPersona = () => { setPersona({}); setSubAgeLabel(""); setScreen("persona"); setPrompt(""); setPromptReady(false); };
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column" }}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}body,html{background:#f0ede8!important}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#c8c0b4}textarea:focus,input:focus{outline:none}button{font-family:inherit;cursor:pointer}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#ddd}textarea:focus{border-color:${C.borderActive}!important;outline:none}`}</style>
 
-      {/* ヘッダー */}
-      <div style={{ padding: "14px 18px 0", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>🧭</div>
+      {/* Header */}
+      <div style={{ padding: "12px 16px 0", borderBottom: `1px solid ${C.border}`, background: C.surface, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🧭</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: C.gold }}>1on1マスターAI</div>
-            <div style={{ fontSize: 10, color: C.textMuted }}>相手の心を開く対話設計をAIがサポート</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.goldDim }}>1on1 マスターAI</div>
+            <div style={{ fontSize: 9, color: C.textMuted }}>ペルソナ×成功循環×マズロー</div>
           </div>
-          <button onClick={toggleTap} style={{ padding: "4px 8px", background: tapOn ? C.goldBg : C.surface2, border: `1px solid ${tapOn ? C.borderActive : C.border}`, borderRadius: 7, fontSize: 10, color: tapOn ? C.gold : C.textMuted, fontWeight: 600 }}>{tapOn ? "🔔音ON" : "🔕音OFF"}</button>
-          <button onClick={() => toggleSpeak(analysisText)} style={{ padding: "4px 7px", background: isSpeaking ? C.goldBg : C.surface2, border: `1px solid ${isSpeaking ? C.borderActive : C.border}`, borderRadius: 7, fontSize: 10, color: isSpeaking ? C.gold : C.textSub, fontWeight: 600 }}>{isSpeaking ? "⏹停止" : "🔈読上"}</button>
-          <button onClick={() => { setSelectedHistory(null); setScreen(screen === "history" ? "home" : "history"); }} style={{ padding: "5px 10px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 10, color: C.textSub }}>📊 履歴</button>
+          <button onClick={toggleTap} style={{ padding: "4px 7px", background: tapOn ? C.goldBg : C.surface2, border: `1px solid ${tapOn ? C.borderActive : C.border}`, borderRadius: 7, fontSize: 10, color: tapOn ? C.gold : C.textMuted, cursor: "pointer", fontWeight: 600 }}>{tapOn ? "🔔音ON" : "🔕音OFF"}</button>
+          <button onClick={() => setScreen("home")} style={{ padding: "4px 8px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 10, color: C.textSub, cursor: "pointer" }}>🏠 ホーム</button>
         </div>
-        {screen === "questions" && <div style={{ display: "flex", gap: 4, paddingBottom: 12 }}>{QUESTIONS.map((_, i) => <div key={i} style={{ flex: 1, height: 2, borderRadius: 1, background: step > i ? C.gold : step === i ? C.goldDim : C.border }} />)}</div>}
-        {screen !== "questions" && <div style={{ height: 12 }} />}
+        {screen === "result" && (
+          <div style={{ fontSize: 10, color: C.gold, marginBottom: 8, padding: "3px 8px", background: C.goldLight, borderRadius: 6, fontWeight: 600 }}>
+            👤 {subAgeLabel}（{ageRelation?.tag}）/ {persona.industry} / {persona.job}
+          </div>
+        )}
       </div>
 
       {/* ホーム */}
       {screen === "home" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "28px 18px 40px" }}>
-          <div style={{ textAlign: "center", marginBottom: 28 }}>
-            <div style={{ fontSize: 48, marginBottom: 14 }}>🧭</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: 12, lineHeight: 1.5 }}>1on1マスターAI</div>
-            <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.9 }}>上司・部下・パートナーとの1on1を成功させるための対話設計をAIが一瞬で提案。相手の心を開き、本当に必要な会話ができます。</div>
-          </div>
-          <div style={{ background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 12, padding: 14, marginBottom: 20, fontSize: 11.5, color: C.gold, lineHeight: 1.7 }}>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>🎁 完全無料・コストゼロ・永久動作</div>
-            このアプリは「対話設計プロンプト」を生成します。それを ChatGPT / Claude / Gemini にコピーして使えば、料金もAPI契約も不要。あなた自身のAIが提案してくれます。
-          </div>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
-            {QUESTIONS.map((q, i) => (
-              <div key={i} style={{ display: "flex", gap: 12, marginBottom: i < QUESTIONS.length - 1 ? 12 : 0 }}>
-                <div style={{ fontSize: 10, color: C.goldDim, fontWeight: 700, width: 18, flexShrink: 0, marginTop: 2 }}>{String(i + 1).padStart(2, "0")}</div>
-                <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{q.title}</div>
-              </div>
-            ))}
-            <div style={{ fontSize: 11, color: C.textMuted, paddingTop: 10, borderTop: `1px solid ${C.border}`, marginTop: 10 }}>所要時間：約10分 ／ 正解はありません</div>
-          </div>
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 6 }}>あなたのお名前(任意)</div>
-            <input value={userName} onChange={e => setUserName(e.target.value)} placeholder="例：田中" style={{ width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "10px 14px", fontSize: 14 }} />
-          </div>
-          <button onClick={() => { T("tap"); setScreen("questions"); }} style={{ width: "100%", padding: "14px 0", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 14, color: "#fff", fontSize: 14, fontWeight: 700 }}>セッションを始める →</button>
-          {history.length > 0 && <button onClick={() => setScreen("history")} style={{ width: "100%", padding: "10px 0", marginTop: 10, background: "transparent", border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 12 }}>📊 過去の記録を見る({history.length}件)</button>}
-        </div>
-      )}
-
-      {/* 質問画面 */}
-      {screen === "questions" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px 40px" }}>
-          <div style={{ fontSize: 11, color: C.gold, fontWeight: 600, marginBottom: 6 }}>問い {step + 1} / {QUESTIONS.length}</div>
-          <div style={{ height: 4, background: C.border, borderRadius: 2, marginBottom: 20 }}>
-            <div style={{ height: "100%", width: `${(step / QUESTIONS.length) * 100}%`, background: `linear-gradient(90deg,${C.gold},${C.goldDim})`, borderRadius: 2, transition: "width 0.5s" }} />
-          </div>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, marginBottom: 18 }}>
-            <div style={{ fontSize: 11, color: C.gold, fontWeight: 700, marginBottom: 10 }}>{currentQ.title}</div>
-            <div style={{ fontSize: 15, color: C.text, lineHeight: 1.85, whiteSpace: "pre-wrap", marginBottom: 14 }}>{currentQ.q}</div>
-          </div>
-          <textarea value={currentAnswer} onChange={e => setCurrentAnswer(e.target.value)} placeholder={currentQ.placeholder} rows={5} style={{ width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 12, color: C.text, padding: "12px 14px", fontSize: 13, resize: "none", lineHeight: 1.7, fontFamily: "sans-serif", marginBottom: 12 }} />
-          <button onClick={submitAnswer} disabled={!currentAnswer.trim()} style={{ width: "100%", padding: "14px 0", background: currentAnswer.trim() ? `linear-gradient(135deg,${C.gold},${C.goldDim})` : C.surface3, border: "none", borderRadius: 14, color: currentAnswer.trim() ? "#fff" : C.textMuted, fontSize: 14, fontWeight: 700 }}>{step < QUESTIONS.length - 1 ? "次の問いへ →" : "プロンプトを生成 →"}</button>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            {step > 0 && <button onClick={() => { setStep(s => s - 1); setCurrentAnswer(""); }} style={{ flex: 1, padding: "10px 0", background: "transparent", border: "none", color: C.textMuted, fontSize: 12 }}>← 前へ</button>}
-            <button onClick={resetAll} style={{ flex: 1, padding: "10px 0", background: "transparent", border: "none", color: C.textMuted, fontSize: 12 }}>🏠 ホームへ</button>
-          </div>
-        </div>
-      )}
-
-      {/* 結果画面 */}
-      {screen === "result" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 40px" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.gold, marginBottom: 4 }}>✨ 対話設計プロンプトが生成されました</div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>下のプロンプトをコピーして、お使いのAI(ChatGPT等)に貼り付けてください</div>
-
-          {/* モード切替 */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-            {[{ k: "deep", l: "🌊 深い分析" }, { k: "simple", l: "📝 シンプル" }, { k: "poetic", l: "🎨 詩的" }].map(m => (
-              <button key={m.k} onClick={() => regeneratePromptWithMode(m.k)} style={{ flex: 1, padding: "8px 0", background: mode === m.k ? `linear-gradient(135deg,${C.gold},${C.goldDim})` : C.surface, border: `1px solid ${mode === m.k ? "transparent" : C.border}`, borderRadius: 9, color: mode === m.k ? "#fff" : C.textSub, fontSize: 11, fontWeight: mode === m.k ? 700 : 500 }}>
-                {m.l}
-              </button>
-            ))}
+        <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+          <div style={{ textAlign: "center", paddingTop: 20, marginBottom: 28 }}>
+            <div style={{ fontSize: 48, marginBottom: 10 }}>🧭</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: C.goldDim, marginBottom: 6 }}>1on1 マスターAI</div>
+            <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.7 }}>成功循環モデル × マズロー心理学<br />管理職向けペルソナ分析ツール</div>
           </div>
 
-          <PromptCard title="📋 対話設計プロンプト" prompt={analysisPrompt} />
-
-          <ResultPasteBox value={analysisText} onChange={setAnalysisText} onSave={saveAnalysisToHistory} saved={analysisSaved} />
-
-          {/* 他者視点 */}
-          <div style={{ marginBottom: 14 }}>
-            <button onClick={generatePerspective} style={{ width: "100%", padding: "11px 0", background: `linear-gradient(135deg,${C.blue},#0a3a5a)`, border: "none", borderRadius: 11, color: "#fff", fontSize: 12, fontWeight: 700, marginBottom: 10 }}>
-              👥 対話分析プロンプトを生成
-            </button>
-            {perspPrompt && <PromptCard title="👥 対話分析プロンプト" prompt={perspPrompt} />}
+          {/* 自分の年齢 */}
+          <div style={{ background: C.surface, borderRadius: 14, padding: 18, marginBottom: 16, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>🎂 あなたの年齢</div>
+            <div style={{ textAlign: "center", fontSize: 32, fontWeight: 700, color: C.goldDim, marginBottom: 8 }}>{userAge}<span style={{ fontSize: 16 }}>歳</span></div>
+            <input type="range" min={22} max={65} value={userAge} onChange={e => setUserAge(Number(e.target.value))}
+              style={{ width: "100%", marginBottom: 8 }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.textMuted }}>
+              <span>22歳</span><span>65歳</span>
+            </div>
           </div>
 
-          {/* 深掘り */}
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.textSub, marginBottom: 8 }}>🔍 特定スキルで深掘り</div>
-            <input value={deepTheme} onChange={e => setDeepTheme(e.target.value)} placeholder="例：部下が心を開きやすい聞き方 / 難しい話をどう切り出すか..." style={{ width: "100%", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 9, color: C.text, padding: "9px 12px", fontSize: 12, marginBottom: 8 }} />
-            <button onClick={generateDeepDive} style={{ width: "100%", padding: "10px 0", background: deepTheme.trim() ? `linear-gradient(135deg,${C.gold},${C.goldDim})` : C.surface3, border: "none", borderRadius: 10, color: deepTheme.trim() ? "#fff" : C.textMuted, fontSize: 12, fontWeight: 700 }}>🔍 深掘りプロンプトを生成</button>
-          </div>
-          {deepPrompt && <PromptCard title="🔍 深掘りプロンプト" prompt={deepPrompt} />}
-
-          <button onClick={resetAll} style={{ width: "100%", padding: "12px 0", marginTop: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 12 }}>🏠 ホームへ戻る / 別の人で始める</button>
-        </div>
-      )}
-
-      {/* 履歴一覧 */}
-      {screen === "history" && !selectedHistory && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 40px" }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.gold, marginBottom: 16 }}>📊 セッション履歴</div>
-          {history.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>まだ履歴がありません</div> : (
-            <>
-              {history.length >= 2 && (
-                <div style={{ marginBottom: 14 }}>
-                  <button onClick={generateHistorySummary} style={{ width: "100%", padding: "10px 0", marginBottom: 8, background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 600 }}>
-                    🧠 過去{history.length}回分の成長傾向プロンプトを生成
-                  </button>
-                  {summaryPrompt && <PromptCard title="🧠 成長傾向プロンプト" prompt={summaryPrompt} />}
-                </div>
-              )}
-              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>👆 タップすると詳細を確認できます</div>
-              {history.map((h, i) => (
-                <div key={i} onClick={() => setSelectedHistory(h)} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 10, cursor: "pointer" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <div style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>{h.userName}</div>
-                    <div style={{ fontSize: 11, color: C.textMuted }}>{h.date} {h.time || ""} ›</div>
+          {/* 自分の役職 */}
+          <div style={{ background: C.surface, borderRadius: 14, padding: 18, marginBottom: 24, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>📊 あなたの役職</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {Object.entries(ROLE_HIERARCHY).map(([key, role]) => (
+                <button key={key} onClick={() => setUserRole(key)} style={{
+                  padding: "14px 16px", borderRadius: 12, border: `2px solid ${userRole === key ? C.borderActive : C.border}`,
+                  background: userRole === key ? C.goldLight : C.surface2, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 12, textAlign: "left",
+                }}>
+                  <div style={{ fontSize: 24 }}>{role.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: userRole === key ? C.goldDim : C.text }}>{role.label}</div>
+                    <div style={{ fontSize: 11, color: C.textMuted }}>{role.desc}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.6 }}>{h.preview}...</div>
-                </div>
+                  {userRole === key && <div style={{ marginLeft: "auto", color: C.gold, fontSize: 18 }}>✓</div>}
+                </button>
               ))}
-              <button onClick={() => { if (confirm("履歴を全削除しますか？")) { setHistory([]); saveHistory([]); } }} style={{ width: "100%", padding: "10px 0", marginTop: 4, background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, color: C.textMuted, fontSize: 11 }}>🗑 履歴を全削除</button>
-            </>
-          )}
-          <button onClick={resetAll} style={{ width: "100%", padding: "12px 0", marginTop: 12, background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 12, color: "#fff", fontSize: 13, fontWeight: 700 }}>🏠 ホームへ</button>
+            </div>
+          </div>
+
+          <button onClick={saveUserProfile} style={{ width: "100%", padding: "14px 0", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 16px rgba(138,96,48,0.3)` }}>
+            ✅ 設定を保存して次へ
+          </button>
         </div>
       )}
 
-      {/* 履歴詳細 */}
-      {screen === "history" && selectedHistory && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 40px" }}>
-          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>{selectedHistory.date} {selectedHistory.time || ""} のセッション ({selectedHistory.userName})</div>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: C.textSub, fontWeight: 600, marginBottom: 10 }}>対話設計案</div>
-            <div style={{ fontSize: 12, color: C.text, lineHeight: 1.9, whiteSpace: "pre-wrap" }}>{selectedHistory.analysis}</div>
+      {/* ペルソナ設定 */}
+      {screen === "persona" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+          <div style={{ fontSize: 12, color: C.textSub, marginBottom: 16, padding: "10px 14px", background: C.goldLight, borderRadius: 10, border: `1px solid ${C.border}`, lineHeight: 1.8 }}>
+            あなた：<strong style={{ color: C.goldDim }}>{ROLE_HIERARCHY[userRole]?.label}（{userAge}歳）</strong><br />
+            部下のペルソナを設定してください。性格・状況は複数選択可。
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={async () => {
-              const text = `【1on1マスターAI】${selectedHistory.date}\n\n${selectedHistory.analysis}`;
-              try { await navigator.clipboard.writeText(text); }
-              catch { const el = document.createElement("textarea"); el.value = text; el.style.cssText = "position:fixed;opacity:0"; document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el); }
-              T("success");
-            }} style={{ flex: 1, padding: "12px 0", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 12 }}>
-              📋 コピー
-            </button>
-            <button onClick={() => setSelectedHistory(null)} style={{ flex: 1, padding: "12px 0", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 12, color: "#fff", fontSize: 12, fontWeight: 700 }}>← 一覧へ</button>
+
+          {/* 部下の年齢 */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>🎂 部下の年齢層</div>
+            {subAgeGroups.above.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 10, color: C.red, marginBottom: 5, fontWeight: 600 }}>▲ 年上の部下</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  {subAgeGroups.above.map(r => <Chip key={r.label} label={r.label} selected={subAgeLabel === r.label} onClick={() => setSubAgeLabel(r.label)} />)}
+                </div>
+              </div>
+            )}
+            {subAgeGroups.same.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 10, color: C.blue, marginBottom: 5, fontWeight: 600 }}>＝ 同学年・近い年代</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  {subAgeGroups.same.map(r => <Chip key={r.label} label={r.label} selected={subAgeLabel === r.label} onClick={() => setSubAgeLabel(r.label)} />)}
+                </div>
+              </div>
+            )}
+            {subAgeGroups.below.length > 0 && (
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ fontSize: 10, color: C.green, marginBottom: 5, fontWeight: 600 }}>▼ 年下の部下</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  {subAgeGroups.below.map(r => <Chip key={r.label} label={r.label} selected={subAgeLabel === r.label} onClick={() => setSubAgeLabel(r.label)} />)}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* 業種 */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>🏢 業種</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {PERSONA.industry.opts.map(o => (
+                <Chip key={o} label={o} selected={persona.industry === o} onClick={() => togglePersona("industry", o, false)} small />
+              ))}
+            </div>
+          </div>
+
+          {/* 職種 */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>💼 職種</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {PERSONA.job.opts.map(o => (
+                <Chip key={o} label={o} selected={(persona.job || []).includes(o)} onClick={() => togglePersona("job", o, true)} small />
+              ))}
+            </div>
+          </div>
+
+          {/* 家族 */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>🏠 家族構成</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {PERSONA.family.opts.map(o => (
+                <Chip key={o} label={o} selected={persona.family === o} onClick={() => togglePersona("family", o, false)} small />
+              ))}
+            </div>
+          </div>
+
+          {/* 性格 */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>🧠 性格・タイプ</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {PERSONA.personality.opts.map(o => (
+                <Chip key={o} label={o} selected={(persona.personality || []).includes(o)} onClick={() => togglePersona("personality", o, true)} small />
+              ))}
+            </div>
+          </div>
+
+          {/* 状況 */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>⚡ 最近の状況・悩み</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {PERSONA.issue.opts.map(o => (
+                <Chip key={o} label={o} selected={(persona.issue || []).includes(o)} onClick={() => togglePersona("issue", o, true)} small />
+              ))}
+            </div>
+          </div>
+
+          {/* ポジション */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>📊 ポジション</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {positionOpts.map(o => (
+                <Chip key={o} label={o} selected={persona.position === o} onClick={() => togglePersona("position", o, false)} small />
+              ))}
+            </div>
+          </div>
+
+          <button onClick={generatePrompt} disabled={!isReady} style={{
+            width: "100%", padding: "14px 0", background: isReady ? `linear-gradient(135deg,${C.gold},${C.goldDim})` : C.surface3,
+            border: "none", borderRadius: 14, color: isReady ? "#fff" : C.textMuted, fontSize: 15, fontWeight: 700, cursor: isReady ? "pointer" : "not-allowed"
+          }}>
+            {isReady ? "✨ プロンプト生成" : "まずは全項目を選択"}
+          </button>
+        </div>
+      )}
+
+      {/* 結果・プロンプト */}
+      {screen === "result" && promptReady && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.goldDim, marginBottom: 16 }}>📋 ペルソナ分析プロンプト</div>
+
+          <PromptCard title="AIへのプロンプト" prompt={prompt} onCopy={() => {}} />
+
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.textSub, marginBottom: 8 }}>💡 使い方</div>
+            <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.8 }}>
+              1. 上のプロンプトをコピーします<br />
+              2. ChatGPT/Claude/Gemini に貼り付けます<br />
+              3. AIの回答をコピーして下に貼り付けます<br />
+              4. 「履歴に保存」で管理できます
+            </div>
+          </div>
+
+          <button onClick={resetPersona} style={{ width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 700 }}>
+            ← ペルソナを変更
+          </button>
+        </div>
+      )}
+
+      {/* 履歴 */}
+      {screen === "home" && history.length > 0 && (
+        <div style={{ padding: "12px 16px", borderTop: `1px solid ${C.border}`, background: C.surface }}>
+          <button onClick={() => setScreen("history")} style={{ width: "100%", padding: "10px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 12, fontWeight: 600 }}>
+            📊 過去の記録（{history.length}件）
+          </button>
         </div>
       )}
     </div>
