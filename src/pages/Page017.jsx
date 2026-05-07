@@ -494,7 +494,11 @@ export default function App() {
               try { await navigator.clipboard.writeText(text); }
               catch { const el = document.createElement("textarea"); el.value = text; el.style.cssText = "position:fixed;opacity:0"; document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el); }
               T("success");
-            }} style
-);
-
-export default Page;
+              }} style={{ flex: 1, padding: "10px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textSub, fontSize: 12, fontWeight: 700 }}>📋 全文コピー</button>
+              <button onClick={() => setSelectedHistory(null)} style={{ flex: 1, padding: "10px 0", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, color: C.textMuted, fontSize: 12 }}>← 戻る</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
