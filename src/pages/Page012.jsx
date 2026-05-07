@@ -497,3 +497,6 @@ export default function App() {
               catch { const el = document.createElement("textarea"); el.value = text; el.style.cssText = "position:fixed;opacity:0"; document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el); }
               T("success");
             }} sty
+);
+
+export default Page;
