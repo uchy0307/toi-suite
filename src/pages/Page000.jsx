@@ -1,8 +1,21 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+// === Page000.jsx === 200の問い 人格分析 - δ方式 メタアプリ v1.0
+// Auto-generated from Page004 template (Phase 1 mass deploy)
+// Theme keywords: 人格分析, メタアプリ, 200の問い
+
+import React, { useState, useRef, useEffect } from "react";
 
 // ───────────────────────────────────────────────────────────
-// 200の問い 人格分析 (app000) - δ方式 メタアプリ v1.0
-// 200本のappのlocalStorageを横断して人格プロファイルを生成
+// 200の問い 人格分析 v2.0 - 4階層カテゴリ＋10問ラリー＋6軸レーダー (Page000)
+// δ方式実装: API呼び出しゼロ、プロンプト生成のみ
+// ───────────────────────────────────────────────────────────
+// テーマ: 200の問い 人格分析 を構造化し、本人視点での再認識と次の一手を引き出す
+// 構造:
+//  - 4階層カテゴリ: 生活領域 / 感情タイプ / 思考パターン / 時間スコープ
+//  - 10回会話ラリー: Q1〜Q10の段階的ヒアリング、進捗バー、前へ/次へ/スキップ
+//  - 200の問い 人格分析レーダー: 6軸 (睡眠/食欲/集中/気分/対人/興味)
+//  - 診断ロジック: 感情循環モデル + マズロー欲求段階
+//  - 履歴保存・呼び出し・削除 (localStorageから復元)
+//  - プロンプト派生: 分析 / 他者視点 / 深掘り / 履歴サマリ
 // ───────────────────────────────────────────────────────────
 
 window._tapOn = typeof window._tapOn !== "undefined" ? window._tapOn : true;
@@ -29,9 +42,22 @@ function T(type = "tap") {
         g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.2);
         o2.start(ctx.currentTime + i * 0.1); o2.stop(ctx.currentTime + i * 0.1 + 0.25);
       });
+    } else if (type === "send") {
+      o.frequency.setValueAtTime(660, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.06);
+      g.gain.setValueAtTime(0.1, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      o.start(); o.stop(ctx.currentTime + 0.1);
+    } else if (type === "next") {
+      o.frequency.setValueAtTime(740, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(988, ctx.currentTime + 0.07);
+      g.gain.setValueAtTime(0.09, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+      o.start(); o.stop(ctx.currentTime + 0.09);
     }
   } catch (e) {}
 }
+
 function doSpeak(text) {
   try {
     window.speechSynthesis.cancel();
@@ -44,6 +70,7 @@ function doSpeak(text) {
     window._speaking = true;
   } catch (e) {}
 }
+
 function doStopSpeak() { try { window.speechSynthesis.cancel(); window._speaking = false; } catch (e) {} }
 
 const C = {
@@ -54,571 +81,437 @@ const C = {
   textSub: "#3a3028", textMuted: "#6a5e50",
   green: "#1a4a30", greenLight: "#d0eedd",
   blue: "#1a4a6a", blueLight: "#d0e0ee",
-  red: "#8a3030", purple: "#5a3a6a"
+  red: "#a02018", purple: "#4a1890",
 };
 
-// ───────────────────────────────────────────────────────────
-// APP_META: 200アプリの番号→[名前, 絵文字, カテゴリ]マップ
-// localStorageのキーはapp03〜app20: 2桁、app021〜app200: 3桁形式
-// ───────────────────────────────────────────────────────────
-const APP_META = {
-  "01": ["1on1マスターAI", "🧭", "自己理解"],
-  "02": ["価値観発掘コンサル", "⚖️", "自己理解"],
-  "001": ["1on1マスターAI", "🧭", "自己理解"],
-  "002": ["価値観発掘コンサル", "⚖️", "自己理解"],
-  "03": ["強み言語化パートナー", "💪", "自己理解"],
-  "04": ["メンタル・デトックス", "🌫️", "自己理解"],
-  "05": ["ライフミッション作成", "🔥", "自己理解"],
-  "06": ["隠れた才能診断", "🎯", "自己理解"],
-  "07": ["コンプレックス反転AI", "🔄", "自己理解"],
-  "08": ["モチベーション源泉分析", "⚡", "自己理解"],
-  "09": ["感情ログ分析", "📊", "自己理解"],
-  "10": ["理想の1日設計", "☀️", "自己理解"],
-  "11": ["自己肯定感ブースター", "🌟", "自己理解"],
-  "12": ["過去の経験から学ぶ", "🌱", "自己理解"],
-  "13": ["才能の掛け算アドバイザー", "✖️", "自己理解"],
-  "14": ["偽りの自分チェッカー", "🪞", "自己理解"],
-  "15": ["集中力プロファイラー", "⚙️", "自己理解"],
-  "16": ["怒りのトリガー分析", "🌋", "自己理解"],
-  "17": ["インポスター症候群対策", "🛡️", "自己理解"],
-  "18": ["コンフォートゾーン脱出", "🚪", "自己理解"],
-  "19": ["自分軸vs他人軸判定", "⚖️", "自己理解"],
-  "20": ["10年後の自分からの手紙", "✉️", "自己理解"],
-  "021": ["起業アイデア壁打ち", "💡", "ビジネス・キャリア"],
-  "022": ["キャリア分岐点相談", "🔀", "ビジネス・キャリア"],
-  "023": ["専門性の棚卸し", "📚", "ビジネス・キャリア"],
-  "024": ["限界突破アドバイザー", "🚧", "ビジネス・キャリア"],
-  "025": ["セールストーク矯正", "💬", "ビジネス・キャリア"],
-  "026": ["独自メソッド開発", "📦", "ビジネス・キャリア"],
-  "027": ["ターゲットプロファイラー", "👤", "ビジネス・キャリア"],
-  "028": ["ポジショニング戦略AI", "🎯", "ビジネス・キャリア"],
-  "029": ["プレゼン緊張解消", "🎤", "ビジネス・キャリア"],
-  "030": ["リーダーシップ診断", "👑", "ビジネス・キャリア"],
-  "031": ["副業ネタ発掘", "🔍", "ビジネス・キャリア"],
-  "032": ["転職理由リライト", "✏️", "ビジネス・キャリア"],
-  "033": ["商談振り返りコーチ", "🤝", "ビジネス・キャリア"],
-  "034": ["年収アップ交渉術", "💰", "ビジネス・キャリア"],
-  "035": ["タイムマネジメント診断", "⏰", "ビジネス・キャリア"],
-  "036": ["プロジェクト解像度アップ", "🔬", "ビジネス・キャリア"],
-  "037": ["挫折予測チェッカー", "⚠️", "ビジネス・キャリア"],
-  "038": ["ネットワーク分析", "🕸️", "ビジネス・キャリア"],
-  "039": ["商品価格の正当性", "🏷️", "ビジネス・キャリア"],
-  "040": ["退職・独立シミュレーション", "🚪", "ビジネス・キャリア"],
-  "041": ["伝え方改善コーチ", "🗣️", "人間関係"],
-  "042": ["苦手な人との境界線", "🚧", "人間関係"],
-  "043": ["傾聴力トレーニング", "👂", "人間関係"],
-  "044": ["婚活・本音マッチング", "💕", "人間関係"],
-  "045": ["子育てイライラ解消", "👨‍👩‍👧", "人間関係"],
-  "046": ["パートナーシップ修復", "💑", "人間関係"],
-  "047": ["謝罪文の最適解", "🙇", "人間関係"],
-  "048": ["会話のネタ帳AI", "🗨️", "人間関係"],
-  "049": ["断り方の美学", "🚷", "人間関係"],
-  "050": ["コミュ癖診断", "🪞", "人間関係"],
-  "051": ["義実家・親戚対応", "🏠", "人間関係"],
-  "052": ["友人の整理・選別", "🤔", "人間関係"],
-  "053": ["反論のスマートな返し", "🔄", "人間関係"],
-  "054": ["雑談力アッププロンプト", "💭", "人間関係"],
-  "055": ["第一印象シミュレーター", "📸", "人間関係"],
-  "056": ["依存関係チェッカー", "🔗", "人間関係"],
-  "057": ["グループでの立ち回り", "👥", "人間関係"],
-  "058": ["嫉妬心の正体", "💚", "人間関係"],
-  "059": ["褒め言葉のバリエーション", "🌹", "人間関係"],
-  "060": ["秘密の告白相談室", "🔐", "人間関係"],
-  "061": ["爆速タスク整理", "⚡", "学習・思考"],
-  "062": ["読書アウトプット", "📖", "学習・思考"],
-  "063": ["英語学習の最適化", "🌍", "学習・思考"],
-  "064": ["悪習慣・断ち切り", "✂️", "学習・思考"],
-  "065": ["アイデア量産・発想法", "💡", "学習・思考"],
-  "066": ["思考の死角チェッカー", "👁️", "学習・思考"],
-  "067": ["論理的思考ドリル", "🧠", "学習・思考"],
-  "068": ["メタ認知トレーニング", "🪞", "学習・思考"],
-  "069": ["記憶定着パートナー", "📌", "学習・思考"],
-  "070": ["質問力向上コーチ", "❓", "学習・思考"],
-  "071": ["図解思考サポーター", "📊", "学習・思考"],
-  "072": ["執筆ブロック解除", "✍️", "学習・思考"],
-  "073": ["資格試験戦略", "🎓", "学習・思考"],
-  "074": ["意思決定の重み付け", "⚖️", "学習・思考"],
-  "075": ["集中BGM提案", "🎵", "学習・思考"],
-  "076": ["失敗の資産化", "💎", "学習・思考"],
-  "077": ["好奇心の地図", "🗺️", "学習・思考"],
-  "078": ["習慣化ハードル下げ", "🪜", "学習・思考"],
-  "079": ["抽象化の練習", "🔄", "学習・思考"],
-  "080": ["逆説的思考", "🔁", "学習・思考"],
-  "081": ["睡眠の質改善", "😴", "QOL・メンタル"],
-  "082": ["ダイエット心理分析", "🍽️", "QOL・メンタル"],
-  "083": ["部屋の乱れ・心模様", "🧹", "QOL・メンタル"],
-  "084": ["買い物依存チェッカー", "🛍️", "QOL・メンタル"],
-  "085": ["メンタル回復ルーティン", "💊", "QOL・メンタル"],
-  "086": ["100のやりたいことリスト", "📝", "QOL・メンタル"],
-  "087": ["孤独との向き合い方", "🌒", "QOL・メンタル"],
-  "088": ["将来不安シミュレーション", "🔮", "QOL・メンタル"],
-  "089": ["自信の土台作り", "🏛️", "QOL・メンタル"],
-  "090": ["瞑想・ガイド台本", "🧘", "QOL・メンタル"],
-  "091": ["ファッション軸探し", "👔", "QOL・メンタル"],
-  "092": ["食生活の意識化", "🥗", "QOL・メンタル"],
-  "093": ["趣味の深掘り", "🎨", "QOL・メンタル"],
-  "094": ["朝の儀式設計", "🌅", "QOL・メンタル"],
-  "095": ["夜のリフレクション", "🌙", "QOL・メンタル"],
-  "096": ["自分の取扱説明書", "📖", "QOL・メンタル"],
-  "097": ["SNS疲れの処方箋", "📵", "QOL・メンタル"],
-  "098": ["ミニマリズム思考", "📦", "QOL・メンタル"],
-  "099": ["デジタルデトックス", "🌐", "QOL・メンタル"],
-  "100": ["運を良くする行動指針", "🍀", "QOL・メンタル"],
-  "101": ["マネーリテラシー可視化", "💵", "お金・将来"],
-  "102": ["稼ぐことへのブロック", "🚧", "お金・将来"],
-  "103": ["支出の感情分析", "💸", "お金・将来"],
-  "104": ["理想の資産形成ビジョン", "🏛️", "お金・将来"],
-  "105": ["寄付・貢献の満足度", "🤲", "お金・将来"],
-  "106": ["老後不安の解体", "👴", "お金・将来"],
-  "107": ["投資スタイル適性", "📈", "お金・将来"],
-  "108": ["収入源の多角化", "💼", "お金・将来"],
-  "109": ["相続・家族対話準備", "👨‍👩‍👧", "お金・将来"],
-  "110": ["お金の貯めどき診断", "📅", "お金・将来"],
-  "111": ["執筆・ストーリー構成", "📜", "クリエイティブ"],
-  "112": ["歌詞フレーズ・エモーション", "🎵", "クリエイティブ"],
-  "113": ["デザイナー・コンセプト可視化", "🎨", "クリエイティブ"],
-  "114": ["役作り・キャラクター分析", "🎭", "クリエイティブ"],
-  "115": ["イベント企画・ワクワク設計", "🎪", "クリエイティブ"],
-  "116": ["YouTube企画・フック作成", "🎬", "クリエイティブ"],
-  "117": ["料理レシピの新発明", "🍳", "クリエイティブ"],
-  "118": ["写真のテーマ性言語化", "📷", "クリエイティブ"],
-  "119": ["工芸・職人のこだわりPR", "✋", "クリエイティブ"],
-  "120": ["アート・ステートメント", "🖼️", "クリエイティブ"],
-};
-// 121-200は省略 (専門ジャンル) - 検出された場合のフォールバックで対応
-const APP_META_FALLBACK = (id) => {
-  const aid = parseInt(id, 10);
-  if (aid >= 121 && aid <= 200) return [`専門アプリ #${id}`, "🎯", "専門ジャンル"];
-  return [`アプリ #${id}`, "❓", "?"];
+// ============================================================
+// 階層カテゴリ定義 (大カテゴリ→詳細)
+// ============================================================
+
+// 生活領域 7カテゴリ
+const DOMAIN_CATS = {
+  "仕事・キャリア": [
+    "業務量過多", "上司との関係", "同僚との関係", "評価・処遇への不満",
+    "将来のキャリアが見えない", "転職を考えている", "業務内容のミスマッチ",
+  ],
+  "人間関係": [
+    "友人関係", "ご近所・地域", "SNSでの繋がり",
+    "苦手な人がいる", "孤独感", "人付き合いの疲れ",
+  ],
+  "家族・パートナー": [
+    "パートナーとの関係", "子育ての悩み", "親との関係",
+    "介護の負担", "義実家との関係", "離婚・別居の悩み",
+  ],
+  "健康・身体": [
+    "不眠・睡眠の質", "体調不良が続く", "体重・食生活",
+    "運動不足", "持病・通院", "メンタル不調の自覚",
+  ],
+  "お金・将来": [
+    "収入への不安", "貯蓄が足りない", "ローン・借金",
+    "老後資金", "子供の教育費", "投資の不安",
+  ],
+  "自分自身": [
+    "自己肯定感の低さ", "外見・体型の悩み", "性格・気質",
+    "能力・スキル不足", "やりたいことが分からない", "成長の停滞",
+  ],
+  "社会・世間": [
+    "ニュース・報道に疲れる", "社会問題への不安", "災害・気候不安",
+    "戦争・政治", "経済・物価高",
+  ],
 };
 
-const HISTORY_KEY = "app000_profile_v1";
-const loadProfiles = () => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; } };
-const saveProfiles = (h) => { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-10))); } catch {} };
+// 感情タイプ 6カテゴリ
+const EMOTION_CATS = {
+  "不安系": [
+    "漠然とした不安", "心配・気がかり", "恐れ・怖さ",
+    "緊張・気が休まらない", "何かが起きそうな予感",
+  ],
+  "怒り系": [
+    "苛立ち・イライラ", "憤り・腹立たしさ", "不満・不公平感",
+    "嫉妬・羨望", "理不尽への怒り",
+  ],
+  "悲しみ系": [
+    "落ち込み・憂鬱", "虚しさ・空虚感", "孤独感",
+    "後悔・取り返せない感", "喪失感",
+  ],
+  "無気力系": [
+    "やる気が出ない", "興味・関心の喪失", "疲労感が取れない",
+    "何もしたくない", "意味を感じない",
+  ],
+  "焦り系": [
+    "焦燥感", "急かされる感覚", "時間が足りない",
+    "周りに置いていかれる感", "結果が出ない焦り",
+  ],
+  "罪悪感系": [
+    "自責の念", "後ろめたさ", "申し訳なさ",
+    "過去の言動への悔い", "迷惑をかけている感覚",
+  ],
+};
 
-// ───────────────────────────────────────────────────────────
-// localStorageから全appデータをスキャン (同origin用 - 主に開発・PWA時)
-// ───────────────────────────────────────────────────────────
-function scanAppData() {
-  const apps = [];
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      const m = key && key.match(/^app(\d{2,3})_history_v1$/);
-      if (!m) continue;
-      try {
-        const raw = localStorage.getItem(key);
-        const data = JSON.parse(raw || "[]");
-        if (Array.isArray(data) && data.length > 0) {
-          const id = m[1];
-          const meta = APP_META[id] || APP_META_FALLBACK(id);
-          apps.push({
-            rawId: id,
-            paddedId: id.padStart(3, "0"),
-            key,
-            count: data.length,
-            data,
-            name: meta[0],
-            emoji: meta[1],
-            category: meta[2],
-            source: "local",
-          });
-        }
-      } catch (e) {}
-    }
-  } catch (e) {}
-  return apps.sort((a, b) => parseInt(a.rawId) - parseInt(b.rawId));
-}
+// 思考パターン 6カテゴリ (CBT認知の歪み)
+const COGNITIVE_CATS = {
+  "極端思考": [
+    "白黒思考（0か100か）", "一般化（いつも・絶対）",
+    "最悪想定（破局思考）", "拡大解釈・縮小解釈",
+  ],
+  "自己責任過多": [
+    "自己批判・自責", "べき思考（〜すべき）",
+    "完璧主義", "罪悪感の引き取り",
+  ],
+  "他者比較": [
+    "SNSでの比較", "同僚・友人との比較",
+    "過去の自分との比較", "理想像との比較",
+  ],
+  "反芻思考": [
+    "過去の出来事を繰り返し考える", "後悔のループ",
+    "言われた一言が頭から離れない", "失敗の再生",
+  ],
+  "未来不安": [
+    "先取り心配", "起きるか分からないことへの不安",
+    "計画が崩れる恐れ", "コントロールできない未来",
+  ],
+  "心読み": [
+    "他人の気持ちを推測", "嫌われている感覚",
+    "評価を気にしすぎる", "顔色を読む疲れ",
+  ],
+};
 
-// ───────────────────────────────────────────────────────────
-// クロスドメインiframe方式: 全toi-XXX.vercel.appをiframe読み込み + postMessage受信
-// 各appは ?_export=1 アクセス時に history データを postMessage する仕組み
-// ───────────────────────────────────────────────────────────
-function getKnownAppIds() {
-  // 全200本(001-200)を3桁形式で生成
-  const ids = new Set();
-  for (let i = 1; i <= 200; i++) ids.add(String(i).padStart(3, "0"));
-  return Array.from(ids).sort((a, b) => parseInt(a) - parseInt(b));
-}
+// 時間スコープ 4カテゴリ
+const TIME_CATS = {
+  "短期（直近）": [
+    "今日のこと", "今週のこと", "数日前から",
+  ],
+  "中期（数週〜数ヶ月）": [
+    "今月のこと", "最近1〜3ヶ月", "季節の変わり目から",
+  ],
+  "長期（半年以上）": [
+    "半年〜1年", "数年前から", "ずっと前から",
+  ],
+  "未来軸（先取り）": [
+    "来月のこと", "来年のこと", "5年後・10年後",
+    "老後・将来", "起こるか分からない先のこと",
+  ],
+};
 
-async function fetchAppHistoryViaIframe(appId, timeoutMs = 4000) {
-  return new Promise((resolve) => {
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;border:0;";
-    const url = `https://toi-${appId}.vercel.app/?_export=1`;
-    iframe.src = url;
+// ============================================================
+// 10回会話ラリー設計 (q1〜q10)
+// ============================================================
 
-    const timer = setTimeout(() => {
-      window.removeEventListener("message", handler);
-      iframe.remove();
-      resolve(null);
-    }, timeoutMs);
+const RALLY_QUESTIONS = [
+  { id: "q1", step: 1, q: "今、「人格分析」について頭の中にあることを全部書き出してください。", placeholder: "例：人格分析が気がかり、最近人格分析について思い出すこと、引っかかっている言葉... 小さなことでも全部" },
+  { id: "q2", step: 2, q: "書き出したものの中で、今「一番心が動いている」のはどれですか？なぜ動くのですか？", placeholder: "例：〇〇が一番引っかかる。なぜなら..." },
+  { id: "q3", step: 3, q: "それはいつから？きっかけになった出来事はありますか？", placeholder: "例：〇月から / 〇〇があった日から / きっかけは思い当たらない など" },
+  { id: "q4", step: 4, q: "これまでに人格分析についてどう取り組んできましたか？効いた・効かなかったのは？", placeholder: "例：本を読んだ / 誰かに相談した / 試したが続かなかった など" },
+  { id: "q5", step: 5, q: "もし「人格分析」が理想の状態に近づいたら、何が一番変わると思いますか？", placeholder: "例：朝の気分が変わる / 周りとの関係が変わる / 自信がつく など" },
+  { id: "q6", step: 6, q: "「人格分析」のうち、自分でコントロールできる部分はどこですか？できない部分は？", placeholder: "コントロールできる：...\nコントロールできない：..." },
+  { id: "q7", step: 7, q: "親友が同じテーマで悩んでいたら、あなたは何と声をかけますか？", placeholder: "例：「焦らなくていい」「一回休んでみたら」など、優しい言葉" },
+  { id: "q8", step: 8, q: "最悪のシナリオは何ですか？それが現実になる確率は何%くらいだと思いますか？", placeholder: "最悪の場合：...\n確率：約〇%" },
+  { id: "q9", step: 9, q: "1年後、「人格分析」はどうなっていそうですか？残っているとしたら何が変わっていますか？", placeholder: "例：解決している / 形を変えて残っている / 別の課題に置き換わる など" },
+  { id: "q10", step: 10, q: "今夜寝る前にできる、ほんの小さな一歩は何ですか？", placeholder: "例：3分書く / 信頼できる人にLINE / 関連動画を1本見る など" },
+];
 
-    function handler(e) {
-      if (!e.data || e.data.type !== "TOI_EXPORT") return;
-      // Verify origin
-      try {
-        const expectedOrigin = `https://toi-${appId}.vercel.app`;
-        if (e.origin !== expectedOrigin) return;
-      } catch (err) {}
-      clearTimeout(timer);
-      window.removeEventListener("message", handler);
-      iframe.remove();
-      resolve(e.data.payload || null);
-    }
-    window.addEventListener("message", handler);
+// ============================================================
+// 200の問い 人格分析レーダー 6軸
+// ============================================================
 
-    document.body.appendChild(iframe);
-  });
-}
+const HEALTH_AXES = [
+  { id: "focus", icon: "🎯", label: "集中", desc: "深く考えられる時間の確保" },
+  { id: "memo", icon: "🧠", label: "記憶", desc: "学んだ内容の定着度" },
+  { id: "curi", icon: "🔍", label: "好奇心", desc: "知りたい気持ちの強さ" },
+  { id: "out", icon: "✍️", label: "アウトプット", desc: "言語化・実践・発信の量" },
+  { id: "cont", icon: "🔁", label: "継続", desc: "習慣として続けられているか" },
+  { id: "meta", icon: "🪞", label: "メタ認知", desc: "自分の理解度を観察できる" },
+];
 
-async function scanCrossDomain(onProgress) {
-  const ids = getKnownAppIds();
-  const apps = [];
-  // Concurrency limit (大量iframe同時生成を避ける)
-  const CONCURRENCY = 8;
-  let cursor = 0;
-  let processed = 0;
-  async function worker() {
-    while (cursor < ids.length) {
-      const id = ids[cursor++];
-      const payload = await fetchAppHistoryViaIframe(id);
-      processed++;
-      if (onProgress) onProgress(processed, ids.length, id, !!payload);
-      if (!payload) continue;
-      // payload should be { history: [...], appId: "XXX" }
-      const data = Array.isArray(payload.history) ? payload.history : [];
-      if (data.length === 0) continue;
-      const meta = APP_META[id] || APP_META[id.replace(/^0+/, "") || "0"] || APP_META_FALLBACK(id);
-      apps.push({
-        rawId: id,
-        paddedId: id.padStart(3, "0"),
-        key: `app${id}_history_v1`,
-        count: data.length,
-        data,
-        name: meta[0],
-        emoji: meta[1],
-        category: meta[2],
-        source: "iframe",
-      });
-    }
-  }
-  const workers = Array.from({ length: CONCURRENCY }, () => worker());
-  await Promise.all(workers);
-  return apps.sort((a, b) => parseInt(a.rawId) - parseInt(b.rawId));
-}
+// 診断ロジック - 感情循環モデル
+const EMOTION_CYCLE = {
+  diagnose: (domain, emotion, cognitive) => {
+    const e = (emotion || []).join(" ");
+    const c = (cognitive || []).join(" ");
+    const d = (domain || []).join(" ");
+    if (/孤独|嫉妬|苦手な人|パートナー|親|義実家|友人/.test(d + " " + e))
+      return { label: "関係修復フェーズ", color: C.red, desc: "対人関係の摩耗が中心です。まず「安全な関係」を1つ取り戻すのが最優先。", action: "今週、安心して話せる相手と15分だけ話す約束を取る" };
+    if (/反芻|心読み|べき思考|完璧|自己批判|罪悪感/.test(c + " " + e))
+      return { label: "思考整理フェーズ", color: C.blue, desc: "思考が同じ軌道をぐるぐる回っています。一度「外に出す」ことが解放の鍵。", action: "気になることを紙に全部書き出し、コントロール可能/不可で分ける" };
+    if (/無気力|疲労|興味の喪失|焦り|時間が足りない/.test(e + " " + d))
+      return { label: "行動転換フェーズ", color: C.gold, desc: "やることが多すぎるか、やり方が合っていません。「やめる」を決めるのが先。", action: "今週「やめること」を1つだけ決めて実行する" };
+    if (/未来不安|破局|転職|キャリア|やりたいことが分からない|意味を感じない/.test(c + " " + d + " " + e))
+      return { label: "意味再発見フェーズ", color: C.green, desc: "進んでいる方向と心の北極星がずれています。「今やっていることの意味」を再点検。", action: "1日1回、今日やったことの中から「自分なりに意味があった瞬間」を1つ書き出す" };
+    return { label: "バランス調整フェーズ", color: C.green, desc: "現時点では大きな崩れはなさそうです。さらに「自分を労わる時間」を増やしましょう。", action: "1日10分、何もしない時間を意図的に確保する" };
+  },
+};
 
-// ───────────────────────────────────────────────────────────
-// プロンプトビルダー: 横断人格分析
-// ───────────────────────────────────────────────────────────
-function buildMetaPrompt(scannedApps, manualEntries) {
-  const all = [
-    ...scannedApps.map(a => ({
-      id: a.paddedId, name: a.name, category: a.category,
-      sessions: a.data, count: a.data.length
-    })),
-    ...manualEntries.map(e => ({
-      id: e.id || "manual", name: e.name || `アプリ ${e.id}`, category: e.category || "?",
-      sessions: [{ analysis: e.text }], count: 1
-    }))
-  ];
+const MASLOW = {
+  diagnose: (domain, emotion, time) => {
+    const s = [...(domain || []), ...(emotion || []), ...(time || [])].join(" ");
+    if (/不眠|体調|食生活|疲労|健康|身体|メンタル不調/.test(s))
+      return { level: 2, name: "安全欲求", desc: "心身の土台が揺らいでいます。「体を整える」ことが最優先。" };
+    if (/孤独|友人関係|苦手な人|パートナー|親|義実家|嫉妬/.test(s))
+      return { level: 3, name: "所属・愛情欲求", desc: "「ここに居ていい」という安心感が薄れています。1つでも安全な繋がりを。" };
+    if (/評価|自己肯定感|外見|罪悪感|他者比較|SNS/.test(s))
+      return { level: 4, name: "承認欲求", desc: "自分を認めてもらいたい欲求が満たされていません。まず自分自身からの承認を。" };
+    if (/やりたいこと|意味|キャリア|成長|未来|興味の喪失/.test(s))
+      return { level: 5, name: "自己実現欲求", desc: "成長・実現への欲求が動いています。「自分にとっての意味」を再構築する時期。" };
+    return { level: 3, name: "所属・愛情欲求", desc: "基本欲求は満たされています。さらに繋がりを深めると次の段階が見えます。" };
+  },
+};
 
-  if (all.length === 0) {
-    return "（データがありません。アプリ003〜200のいずれかで分析を保存するか、下のフォームから手動で結果を入力してください）";
-  }
+// ============================================================
+// δ方式プロンプト生成
+// ============================================================
 
-  const block = all.map(a => {
-    const recent = (a.sessions || []).slice(-2);
-    const t = recent.map(s => s.analysis || s.preview || s.letter || s.text || "")
-                  .filter(Boolean).join("\n\n").slice(0, 1200);
-    return `## 📂 アプリ${a.id} ${a.name} (${a.category}) - ${a.count}回実施\n${t || "(データなし)"}`;
-  }).join("\n\n---\n\n");
+const buildAnalysisPrompt = (userName, persona, rallyAnswers, radarScores) => {
+  const cycle = EMOTION_CYCLE.diagnose(persona.domain, persona.emotion, persona.cognitive);
+  const maslow = MASLOW.diagnose(persona.domain, persona.emotion, persona.time);
 
-  return `あなたは「人格分析の専門家」です。以下のユーザーが「200の問い」シリーズの複数アプリで実施した自己分析の蓄積を踏まえ、横断的な人格プロファイルを作成してください。
+  const nm = (userName || "").trim();
 
-各アプリは異なる角度から自己を見つめる問いを提供しており、複数のアプリ実績を統合することで、ユーザーの本質的な人格パターンが浮かび上がります。
+  // 健康レーダー文字列化
+  const radarBlock = HEALTH_AXES.map(ax => {
+    const v = radarScores[ax.id] || 3;
+    const bar = "■".repeat(v) + "□".repeat(5 - v);
+    return `${ax.icon} ${ax.label}: ${bar} (${v}/5) - ${ax.desc}`;
+  }).join("\n");
 
-### 【出力フォーマット (必ずこの順序で)】
+  // 一番低い軸
+  const lowestAxis = HEALTH_AXES.slice().sort((a, b) => (radarScores[a.id] || 3) - (radarScores[b.id] || 3))[0];
+  const lowestVal = radarScores[lowestAxis.id] || 3;
 
-#### 🌟 価値観の軸 (5指標)
-ユーザーが大切にしている価値観を5つ抽出。各価値観に強さ(1〜10)を付ける。
-- 自由: X/10
-- 成長: X/10
-- 関係性: X/10
-- 達成: X/10
-- 安定: X/10
+  // ペルソナ要約
+  const personaBlock = `生活領域: ${(persona.domain || []).join("・") || "(未選択)"}
+感情タイプ: ${(persona.emotion || []).join("・") || "(未選択)"}
+思考パターン: ${(persona.cognitive || []).join("・") || "(未選択)"}
+時間スコープ: ${(persona.time || []).join("・") || "(未選択)"}`;
 
-(これら5つの軸でレーダーチャートを描けるように、必ず数値で出してください)
-
-#### 🧠 思考傾向
-ユーザーの思考スタイルを3つ選び、根拠を1〜2文ずつ。
-(例: 分析的/直感的/具体的/抽象的/論理的/感情的/批判的/創造的 など)
-
-#### ❤️ 感情パターン
-よく現れる感情の傾向を3つ。各パターンの「トリガー」と「対処法」を1文ずつ。
-
-#### 🎯 行動傾向
-行動のクセを3つ。具体例を1文ずつ。
-(例: 計画的/即興的/慎重/挑戦的/協調/独立 など)
-
-#### 💎 強み (3つ) と 伸ばしどころ (3つ)
-強み3つと伸ばしどころ3つを、それぞれ1〜2文の説明付きで。
-
-#### 🌅 人生フェーズの傾向
-今のユーザーが「どんなフェーズにいるか」を1段落(過渡期/開拓期/安定期/深化期/再生期/創造期 など)。
-
-#### 🚀 おすすめ次アプリ
-このユーザーが次に取り組むと最も効果が出そうな「200の問い」シリーズ内のアプリ番号を3つ提案。各3〜4文で理由付き。
-
-#### 📝 全体総評
-ユーザー像を200〜300字でまとめる。簡潔かつ温かいトーンで。
-
-──────────────────────────
-【ユーザーの分析履歴】
-${block}
-──────────────────────────`;
-}
-
-// ───────────────────────────────────────────────────────────
-// プロファイルパーサー: AI出力からセクション抽出
-// ───────────────────────────────────────────────────────────
-function parseProfile(rawText) {
-  if (!rawText || rawText.trim().length === 0) return null;
-
-  const text = rawText.trim();
-  const profile = {
-    raw: text,
-    values: {},
-    thinking: "",
-    emotion: "",
-    action: "",
-    strengths: "",
-    phase: "",
-    recommend: "",
-    summary: ""
-  };
-
-  // 価値観の数値抽出
-  const valueSectionMatch = text.match(/価値観の軸[\s\S]*?(?=思考傾向|🧠|####|$)/);
-  if (valueSectionMatch) {
-    const matches = [...valueSectionMatch[0].matchAll(/[-•・*]\s*([^\s:：]+)\s*[:：]\s*(\d+)\s*\/\s*10/g)];
-    matches.forEach(m => {
-      profile.values[m[1].trim()] = Math.min(10, Math.max(0, parseInt(m[2])));
+  // 10ラリー回答
+  let rallyBlock = "";
+  if (Array.isArray(rallyAnswers) && rallyAnswers.some(a => a && a.trim())) {
+    rallyBlock = "\n━━━ 10回会話ラリーの回答 ━━━\n";
+    RALLY_QUESTIONS.forEach((rq, i) => {
+      const ans = (rallyAnswers[i] || "").trim();
+      rallyBlock += `Q${rq.step}. ${rq.q}\n  → ${ans || "(スキップ)"}\n`;
     });
   }
 
-  // 各セクション抽出 (ヘッダ+次のヘッダまで)
-  const extractSection = (startPattern, endPatterns) => {
-    const startRe = new RegExp(startPattern);
-    const startMatch = text.match(startRe);
-    if (!startMatch) return "";
-    const startIdx = startMatch.index + startMatch[0].length;
-    let endIdx = text.length;
-    for (const ep of endPatterns) {
-      const m = text.slice(startIdx).match(new RegExp(ep));
-      if (m) endIdx = Math.min(endIdx, startIdx + m.index);
+  return `あなたは「200の問い 人格分析の専門家」です。認知行動療法(CBT)・成功循環モデル・マズロー欲求段階の知見を踏まえ、以下の人物の人格分析を構造化し、解放への道筋を提示してください。
+
+${nm ? `【対象者】${nm}` : "【対象者】(匿名)"}
+
+━━━ ペルソナ4軸分析 ━━━
+${personaBlock}
+
+━━━ 200の問い 人格分析レーダー (6軸主観スコア / 5段階) ━━━
+${radarBlock}
+※ 最も低い軸: 【${lowestAxis.icon} ${lowestAxis.label}: ${lowestVal}/5】 - ${lowestAxis.desc}
+
+━━━ 感情循環モデル診断 ━━━
+現在のフェーズ: 【${cycle.label}】
+${cycle.desc}
+今週の一手: ${cycle.action}
+
+━━━ マズロー欲求段階診断 ━━━
+優先欲求: 【${maslow.name}（第${maslow.level}段階）】
+${maslow.desc}
+${rallyBlock}
+━━━ 出力フォーマット ━━━
+
+### 【200の問い 人格分析 構造マップ】
+感情・思考・行動・環境の4分類で、本人の言葉を引用しながら整理してください（300〜400字）。
+
+### 【本当の原因の特定】
+表面的な人格分析の奥にある根本原因を、ペルソナ4軸と10ラリー回答を統合して論理的に示してください（300〜400字）。
+
+### 【健康レーダーから見えるサイン】
+最も低い軸「${lowestAxis.label}」を中心に、生活全体への波及と回復の最短ルートを示してください（200〜300字）。
+
+### 【今すぐできる一手】
+コントロールできることの中から、今夜寝る前または明日朝にできる「最小単位の行動」を1つ提示してください。10ラリーQ10の回答を参考に。
+
+### 【思考の書き換え】
+最もネガティブな思考パターンを取り出し、CBTの認知再構成法でより現実的な視点に書き換えてください（具体例つき、200〜300字）。
+
+### 【1ヶ月後の自分への手紙】
+1ヶ月この処方箋を続けたあとの自分から、今の自分に向けた短い手紙（150〜200字）を書いてください。
+
+合計1200〜1800字。途中で終わらず、全セクションを書き切ってください。
+
+━━━ 使い方 ━━━
+このプロンプトをコピーして Claude / ChatGPT / Gemini に貼り付けてください。`;
+};
+
+const buildPerspectivePrompt = (userName, analysisText) => {
+  return `あなたは「他者視点分析の専門家」です。以下の200の問い 人格分析分析を踏まえ、3つの異なる視点からその人を見たときに何が見えるかを描写してください。
+
+### 👫 親友・友人の視点
+${userName ? userName + "さんを" : "この人を"}よく知る親友として、「この人がいま抱えているもの」「無理しすぎているところ」「あなたのままでいい部分」を率直に語ってください。愛情ある正直さで。2〜3段落。
+
+### ❤️ 大切な家族・パートナーの視点
+身近にいる人として、「そばにいて感じること」「気づいているけど言えていないこと」「あなたが思っているよりずっと大切に思っていること」を語ってください。2〜3段落。
+
+### 🔮 1年後の自分の視点
+1年後の${userName ? userName + "さん" : "あなた"}が今を振り返って語ってください。「あの頃の自分は…」「今から見れば…」「あの選択をしたから今がある」。2〜3段落。
+
+各視点は語りかける形式で。鋭く、温かく、読んで「確かに…」と思わせる内容に。合計900〜1200字。途中で終わらないこと。
+
+──────────────────────────
+【元の分析結果】
+${(analysisText || "").slice(0, 1200)}
+──────────────────────────`;
+};
+
+const buildDeepDivePrompt = (userName, analysisText, theme) => {
+  return `あなたは「強み言語化の専門家」です。以下の人物の200の問い 人格分析分析結果を踏まえ、特定のテーマについて深掘りした追加分析を行ってください。
+
+### 深掘りテーマ
+${theme}
+
+### 出力フォーマット
+1. このテーマがその人の現状とどう繋がっているか（3〜4文）
+2. 具体的な向き合い方を3パターン
+3. 注意すべき落とし穴を1つ
+4. 今日から始められる小さな実験を1つ
+
+合計600〜800字で。
+
+──────────────────────────
+${userName ? "【対象者】" + userName + "\n\n" : ""}【元の分析結果】
+${(analysisText || "").slice(0, 1000)}
+──────────────────────────`;
+};
+
+const buildHistorySummaryPrompt = (history) => {
+  const recent = history.slice(0, 5);
+  return `あなたは継続的なメンタルケアをサポートするコーチです。以下は同じ人の過去${recent.length}回分のセッション履歴です。
+
+この人の変化・回復・繰り返されているパターン・今後の課題を200〜300字程度でサマリしてください。
+過去から現在への流れが分かるように、時系列を意識して書いてください。
+
+──────────────────────────
+${recent.map((h, i) => `【${i + 1}回目 ${h.date}】\n${(h.analysis || h.preview || "").slice(0, 400)}`).join("\n\n---\n\n")}
+──────────────────────────`;
+};
+
+// ============================================================
+// ストレージ
+// ============================================================
+
+const HISTORY_KEY = "app000_history_v2";
+const loadHistory = () => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; } };
+const saveHistory = (h) => { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-50))); } catch {} };
+
+const PROFILE_KEY = "app000_profile_v2";
+const loadProfile = () => { try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "null"); } catch { return null; } };
+const saveProfile = (p) => { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {} };
+
+// ============================================================
+// UI Components
+// ============================================================
+
+const Chip = ({ label, selected, onClick, multi, small }) => (
+  <button onClick={onClick} style={{
+    padding: small ? "5px 10px" : "6px 12px",
+    borderRadius: 20, fontSize: small ? 11 : 11.5, cursor: "pointer",
+    background: selected ? C.goldLight : C.surface2,
+    border: `1.5px solid ${selected ? C.borderActive : C.border}`,
+    color: selected ? C.goldDim : C.textSub,
+    fontWeight: selected ? 700 : 400, transition: "all 0.15s", whiteSpace: "nowrap",
+  }}>
+    {selected && multi ? "✓ " : ""}{label}
+  </button>
+);
+
+const CategoryBtn = ({ name, count, selectedCount, expanded, onClick }) => (
+  <button onClick={onClick} style={{
+    padding: "10px 12px", borderRadius: 10,
+    background: expanded ? C.goldLight : (selectedCount > 0 ? C.surface : C.surface2),
+    border: `1.5px solid ${expanded ? C.borderActive : (selectedCount > 0 ? C.gold : C.border)}`,
+    color: expanded ? C.goldDim : C.textSub,
+    fontSize: 12, fontWeight: 700, cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    gap: 8, textAlign: "left", width: "100%",
+  }}>
+    <span>
+      {expanded ? "▼ " : "▶ "}{name}
+      {selectedCount > 0 && (
+        <span style={{ marginLeft: 6, fontSize: 10, color: C.gold }}>
+          ({selectedCount}選択)
+        </span>
+      )}
+    </span>
+    <span style={{ fontSize: 10, color: C.textMuted, fontWeight: 400 }}>
+      {count}項目
+    </span>
+  </button>
+);
+
+const HierCatPicker = ({ catObj, selected, multi, expandedCat, setExpandedCat, onPick, label, icon }) => {
+  const countSelected = (catName) => {
+    const items = catObj[catName] || [];
+    if (multi) {
+      const arr = selected || [];
+      return items.filter(it => arr.includes(it)).length;
+    } else {
+      return selected && items.includes(selected) ? 1 : 0;
     }
-    return text.slice(startIdx, endIdx).trim();
   };
-
-  profile.thinking = extractSection("思考傾向", ["感情パターン", "❤️", "####"]);
-  profile.emotion = extractSection("感情パターン", ["行動傾向", "🎯", "####"]);
-  profile.action = extractSection("行動傾向", ["強み", "伸ばしどころ", "💎", "####"]);
-  profile.strengths = extractSection("(?:強み.*?伸ばしどころ|💎)", ["人生フェーズ", "🌅", "####"]);
-  profile.phase = extractSection("人生フェーズ", ["おすすめ次アプリ", "🚀", "####"]);
-  profile.recommend = extractSection("おすすめ次アプリ", ["全体総評", "📝", "####"]);
-  profile.summary = extractSection("全体総評", ["$"]);
-
-  return profile;
-}
-
-// ───────────────────────────────────────────────────────────
-// SVGレーダーチャート
-// ───────────────────────────────────────────────────────────
-const RadarChart = ({ scores, size = 280 }) => {
-  const labels = Object.keys(scores);
-  if (labels.length < 3) return <div style={{ padding: 20, textAlign: "center", color: C.textMuted, fontSize: 11 }}>(価値観スコアが3つ未満のためレーダー描画不可)</div>;
-
-  const cx = size / 2, cy = size / 2;
-  const r = size * 0.32;
-  const angleStep = (Math.PI * 2) / labels.length;
-
-  const points = labels.map((label, i) => {
-    const angle = -Math.PI / 2 + i * angleStep;
-    const value = (scores[label] || 0) / 10;
-    return `${cx + Math.cos(angle) * r * value},${cy + Math.sin(angle) * r * value}`;
-  }).join(" ");
-
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "100%", maxWidth: 320, display: "block", margin: "0 auto" }}>
-      {[0.25, 0.5, 0.75, 1].map(lv => (
-        <circle key={lv} cx={cx} cy={cy} r={r * lv} fill="none" stroke={C.border} strokeWidth="1" />
-      ))}
-      {labels.map((_, i) => {
-        const angle = -Math.PI / 2 + i * angleStep;
-        return <line key={i} x1={cx} y1={cy} x2={cx + Math.cos(angle) * r} y2={cy + Math.sin(angle) * r} stroke={C.border} strokeWidth="1" />;
-      })}
-      <polygon points={points} fill={`${C.gold}44`} stroke={C.gold} strokeWidth="2" />
-      {labels.map((label, i) => {
-        const angle = -Math.PI / 2 + i * angleStep;
-        const value = (scores[label] || 0) / 10;
-        const x = cx + Math.cos(angle) * r * value;
-        const y = cy + Math.sin(angle) * r * value;
-        return <circle key={i} cx={x} cy={y} r="4" fill={C.gold} />;
-      })}
-      {labels.map((label, i) => {
-        const angle = -Math.PI / 2 + i * angleStep;
-        const x = cx + Math.cos(angle) * (r + 24);
-        const y = cy + Math.sin(angle) * (r + 24);
-        return (
-          <g key={i}>
-            <text x={x} y={y - 6} textAnchor="middle" dominantBaseline="middle" fontSize="11" fill={C.text} fontWeight="600">
-              {label}
-            </text>
-            <text x={x} y={y + 7} textAnchor="middle" dominantBaseline="middle" fontSize="10" fill={C.gold} fontWeight="700">
-              {scores[label]}/10
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 12, color: C.textSub, marginBottom: 8, fontWeight: 600 }}>
+        {icon} {label}
+        {multi && <span style={{ marginLeft: 6, fontSize: 10, color: C.textMuted }}>(複数選択可)</span>}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {Object.keys(catObj).map((catName) => {
+          const isExpanded = expandedCat === catName;
+          const items = catObj[catName] || [];
+          const sCount = countSelected(catName);
+          return (
+            <div key={catName}>
+              <CategoryBtn
+                name={catName}
+                count={items.length}
+                selectedCount={sCount}
+                expanded={isExpanded}
+                onClick={() => { T("tap"); setExpandedCat(isExpanded ? null : catName); }}
+              />
+              {isExpanded && (
+                <div style={{
+                  display: "flex", flexWrap: "wrap", gap: 5,
+                  padding: "8px 10px", marginTop: 4, marginBottom: 4,
+                  background: C.goldBg, borderRadius: 8,
+                  border: `1px dashed ${C.border}`,
+                }}>
+                  {items.map((opt) => {
+                    const sel = multi ? (selected || []).includes(opt) : selected === opt;
+                    return (
+                      <Chip key={opt} label={opt} selected={sel} multi={multi}
+                        onClick={() => onPick(opt)} small />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
-// ───────────────────────────────────────────────────────────
-// シェア画像ジェネレータ (Canvas)
-// ───────────────────────────────────────────────────────────
-async function generateShareImage(profile, totalApps) {
-  const W = 1080, H = 1920;
-  const canvas = document.createElement("canvas");
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext("2d");
-
-  const grad = ctx.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0, "#a87238");
-  grad.addColorStop(1, "#5a3a10");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  const inset = 60, cardX = inset, cardY = 200, cardW = W - inset * 2;
-  ctx.fillStyle = "#f0ede8";
-  roundRect(ctx, cardX, cardY, cardW, H - cardY - inset, 40);
-  ctx.fill();
-
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 56px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("200の問い人格分析", W / 2, 110);
-  ctx.font = "28px sans-serif";
-  ctx.fillStyle = "#f5e8d0";
-  ctx.fillText(`${totalApps}本のアプリで深掘り`, W / 2, 160);
-
-  ctx.fillStyle = "#8a6030";
-  ctx.font = "bold 44px sans-serif";
-  ctx.textAlign = "left";
-  let y = cardY + 90;
-  ctx.fillText("🌟 価値観の軸", cardX + 50, y);
-
-  if (profile.values && Object.keys(profile.values).length >= 3) {
-    const radarSize = 480;
-    const rcx = W / 2, rcy = y + 60 + radarSize / 2;
-    const labels = Object.keys(profile.values);
-    const r = radarSize * 0.32;
-    const angleStep = (Math.PI * 2) / labels.length;
-    ctx.strokeStyle = "#c8c0b4"; ctx.lineWidth = 2;
-    [0.25, 0.5, 0.75, 1].forEach(lv => {
-      ctx.beginPath();
-      for (let i = 0; i < labels.length; i++) {
-        const a = -Math.PI / 2 + i * angleStep;
-        const x = rcx + Math.cos(a) * r * lv;
-        const yy = rcy + Math.sin(a) * r * lv;
-        if (i === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
-      }
-      ctx.closePath(); ctx.stroke();
-    });
-    ctx.beginPath();
-    labels.forEach((lb, i) => {
-      const a = -Math.PI / 2 + i * angleStep;
-      const v = (profile.values[lb] || 0) / 10;
-      const x = rcx + Math.cos(a) * r * v;
-      const yy = rcy + Math.sin(a) * r * v;
-      if (i === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
-    });
-    ctx.closePath();
-    ctx.fillStyle = "rgba(138,96,48,0.3)";
-    ctx.fill();
-    ctx.strokeStyle = "#8a6030"; ctx.lineWidth = 4;
-    ctx.stroke();
-    ctx.fillStyle = "#5a3a10";
-    ctx.font = "bold 28px sans-serif";
-    ctx.textAlign = "center";
-    labels.forEach((lb, i) => {
-      const a = -Math.PI / 2 + i * angleStep;
-      const x = rcx + Math.cos(a) * (r + 50);
-      const yy = rcy + Math.sin(a) * (r + 50);
-      ctx.fillText(`${lb} ${profile.values[lb]}/10`, x, yy);
-    });
-    y = rcy + radarSize / 2 + 60;
-  } else {
-    y += 80;
-  }
-
-  ctx.fillStyle = "#1a1210";
-  ctx.font = "bold 36px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText("📝 総評", cardX + 50, y); y += 50;
-  ctx.font = "28px sans-serif";
-  ctx.fillStyle = "#3a3028";
-  const summary = (profile.summary || "(まだ生成されていません)").slice(0, 200);
-  const lines = wrapText(ctx, summary, cardW - 100);
-  lines.slice(0, 8).forEach(line => { ctx.fillText(line, cardX + 50, y); y += 40; });
-
-  ctx.fillStyle = "#5a3a10";
-  ctx.font = "24px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("https://toi-000.vercel.app  |  200の問い by happyhappy", W / 2, H - 80);
-
-  return canvas.toDataURL("image/png");
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function wrapText(ctx, text, maxWidth) {
-  const words = text.split("");
-  const lines = [];
-  let line = "";
-  for (const ch of words) {
-    if (ch === "\n") { lines.push(line); line = ""; continue; }
-    const test = line + ch;
-    if (ctx.measureText(test).width > maxWidth && line) {
-      lines.push(line);
-      line = ch;
-    } else {
-      line = test;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-// ───────────────────────────────────────────────────────────
-// UIコンポーネント
-// ───────────────────────────────────────────────────────────
-const PromptCard = ({ title, prompt }) => {
+const PromptCard = ({ title, prompt, onCopied }) => {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    T("tap");
+    T("send");
     try { await navigator.clipboard.writeText(prompt); }
-    catch { const el = document.createElement("textarea"); el.value = prompt; el.style.cssText = "position:fixed;opacity:0"; document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el); }
+    catch {
+      const el = document.createElement("textarea");
+      el.value = prompt;
+      el.style.cssText = "position:fixed;opacity:0";
+      document.body.appendChild(el); el.select();
+      document.execCommand("copy"); document.body.removeChild(el);
+    }
     setCopied(true); T("success");
+    if (onCopied) onCopied();
     setTimeout(() => setCopied(false), 2500);
   };
   return (
@@ -629,28 +522,109 @@ const PromptCard = ({ title, prompt }) => {
           {copied ? "✅ コピー済" : "📋 コピー"}
         </button>
       </div>
-      <div style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, fontSize: 11, lineHeight: 1.85, color: C.text, whiteSpace: "pre-wrap", maxHeight: 320, overflowY: "auto" }}>
+      <div style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, fontSize: 11.5, lineHeight: 1.85, color: C.text, whiteSpace: "pre-wrap", maxHeight: 320, overflowY: "auto", fontFamily: "monospace" }}>
         {prompt}
-      </div>
-      <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 8 }}>
-        ☝️ コピーして ChatGPT / Claude / Gemini に貼り付け、結果を下に貼り付けてください。
       </div>
     </div>
   );
 };
 
-const ProfileCard = ({ icon, title, body, color }) => (
-  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 12, borderLeft: `4px solid ${color || C.gold}` }}>
-    <div style={{ fontSize: 13, fontWeight: 700, color: color || C.gold, marginBottom: 8 }}>
-      {icon} {title}
+// 200の問い 人格分析レーダー (6軸SVG)
+const HealthRadar = ({ scores, onChange }) => {
+  const W = 280, H = 280, cx = 140, cy = 140, r = 90, n = 6;
+  const ang = (i) => (2 * Math.PI / n) * i - Math.PI / 2;
+  const pt = (i, rad) => ({ x: cx + rad * Math.cos(ang(i)), y: cy + rad * Math.sin(ang(i)) });
+  const dataPath = HEALTH_AXES.map((ax, i) => {
+    const v = (scores[ax.id] || 3) / 5;
+    const p = pt(i, v * r);
+    return `${i === 0 ? "M" : "L"}${p.x},${p.y}`;
+  }).join(" ") + " Z";
+  const gridLevels = [0.2, 0.4, 0.6, 0.8, 1.0];
+  const gridColors = ["#ece6dd", "#e0d8cc", "#d4cabb", "#c8c0b4", "#bcb2a4"];
+  return (
+    <div style={{ background: C.surface, borderRadius: 14, padding: 16, marginBottom: 14, border: `1px solid ${C.border}` }}>
+      <div style={{ fontSize: 12, color: C.gold, fontWeight: 700, marginBottom: 10, textAlign: "center" }}>
+        🩺 200の問い 人格分析レーダー (6軸)
+      </div>
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
+          <rect width={W} height={H} fill={C.surface} />
+          {gridLevels.map((lv, li) => {
+            const d = HEALTH_AXES.map((_, i) => {
+              const p = pt(i, r * lv);
+              return `${i === 0 ? "M" : "L"}${p.x},${p.y}`;
+            }).join(" ") + " Z";
+            return <path key={li} d={d} fill="none" stroke={gridColors[li]} strokeWidth={1} />;
+          })}
+          {HEALTH_AXES.map((_, i) => {
+            const p = pt(i, r);
+            return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={C.border} strokeWidth={1} />;
+          })}
+          <path d={dataPath} fill="rgba(138,96,48,0.15)" stroke={C.gold} strokeWidth={2} strokeLinejoin="round" />
+          {HEALTH_AXES.map((ax, i) => {
+            const v = (scores[ax.id] || 3) / 5;
+            const p = pt(i, v * r);
+            return <circle key={ax.id} cx={p.x} cy={p.y} r={5} fill={C.gold} />;
+          })}
+          {HEALTH_AXES.map((ax, i) => {
+            const lp = pt(i, r + 28);
+            return (
+              <g key={ax.id}>
+                <text x={lp.x} y={lp.y - 7} textAnchor="middle" fontSize={15} dominantBaseline="middle">{ax.icon}</text>
+                <text x={lp.x} y={lp.y + 9} textAnchor="middle" fontSize={9} fill={C.textSub} fontFamily="sans-serif">{ax.label}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      {onChange && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 8, textAlign: "center" }}>
+            ↓ 各軸を1〜5で評価してください
+          </div>
+          {HEALTH_AXES.map(ax => (
+            <div key={ax.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 14, width: 22 }}>{ax.icon}</div>
+              <div style={{ fontSize: 11, color: C.text, width: 40, flexShrink: 0, fontWeight: 600 }}>{ax.label}</div>
+              <div style={{ display: "flex", gap: 3, flex: 1 }}>
+                {[1, 2, 3, 4, 5].map(n => {
+                  const sel = (scores[ax.id] || 3) === n;
+                  return (
+                    <button key={n} onClick={() => { T("tap"); onChange(ax.id, n); }} style={{
+                      flex: 1, padding: "6px 0", borderRadius: 6,
+                      background: sel ? C.gold : C.surface2,
+                      border: `1px solid ${sel ? C.goldDim : C.border}`,
+                      color: sel ? "#fff" : C.textMuted,
+                      fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    }}>{n}</button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-    <div style={{ fontSize: 12, color: C.text, lineHeight: 1.85, whiteSpace: "pre-wrap" }}>
-      {body || "(まだ生成されていません)"}
-    </div>
+  );
+};
+
+const ResultPasteBox = ({ value, onChange, onSave, saved, label }) => (
+  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+    <div style={{ fontSize: 11, fontWeight: 700, color: C.textSub, marginBottom: 8 }}>{label || "📥 AIから返ってきた結果を貼り付け"}</div>
+    <textarea value={value} onChange={e => onChange(e.target.value)}
+      placeholder="ここにAIの回答をコピー&ペーストしてください..."
+      rows={5}
+      style={{ width: "100%", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "10px 12px", fontSize: 12, resize: "vertical", lineHeight: 1.7, fontFamily: "sans-serif", marginBottom: 8 }} />
+    <button onClick={onSave} disabled={!value.trim()}
+      style={{ width: "100%", padding: "10px 0", background: !value.trim() ? C.surface3 : saved ? C.greenLight : `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: `1px solid ${saved ? C.green : "transparent"}`, borderRadius: 10, color: !value.trim() ? C.textMuted : saved ? C.green : "#fff", fontSize: 12, fontWeight: 700 }}>
+      {saved ? "✅ 履歴に保存しました" : "💾 履歴に保存"}
+    </button>
   </div>
 );
 
-// ───────────────────────────────────────────────────────────
+// ============================================================
+// Main Component
+// ============================================================
 
 export default function App() {
   useEffect(() => {
@@ -658,6 +632,8 @@ export default function App() {
     document.documentElement.style.background = "#f0ede8";
   }, []);
 
+  const savedProfile = loadProfile();
+  const [screen, setScreen] = useState("home"); // home | persona | radar | rally | result | history
   const [tapOn, setTapOn] = useState(true);
   const tapOnRef = useRef(true);
   const toggleTap = () => { const next = !tapOnRef.current; tapOnRef.current = next; setTapOn(next); window._tapOn = next; };
@@ -668,447 +644,513 @@ export default function App() {
     else if (text) { doSpeak(text); setIsSpeaking(true); }
   };
 
-  const [screen, setScreen] = useState("home");
-  const [scannedApps, setScannedApps] = useState([]);
-  const [manualEntries, setManualEntries] = useState([]);
-  const [manualForm, setManualForm] = useState({ id: "", text: "" });
+  const [userName, setUserName] = useState(savedProfile?.userName || "");
+
+  // 4階層カテゴリ選択状態
+  const [persona, setPersona] = useState({
+    domain: [], emotion: [], cognitive: [], time: [],
+  });
+  const [expDomain, setExpDomain] = useState(null);
+  const [expEmotion, setExpEmotion] = useState(null);
+  const [expCognitive, setExpCognitive] = useState(null);
+  const [expTime, setExpTime] = useState(null);
+
+  // 健康レーダースコア
+  const [radarScores, setRadarScores] = useState({ focus: 3, memo: 3, curi: 3, out: 3, cont: 3, meta: 3 });
+
+  // 10ラリー
+  const [rallyIdx, setRallyIdx] = useState(0);
+  const [rallyAnswers, setRallyAnswers] = useState(Array(10).fill(""));
+
+  // δ方式: 生成プロンプトと貼り付け結果
   const [analysisPrompt, setAnalysisPrompt] = useState("");
-  const [aiResult, setAiResult] = useState("");
-  const [profile, setProfile] = useState(null);
-  const [profiles, setProfiles] = useState(loadProfiles());
-  const [shareImageUrl, setShareImageUrl] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [crossScanning, setCrossScanning] = useState(false);
-  const [crossProgress, setCrossProgress] = useState({ done: 0, total: 0, current: "" });
+  const [analysisText, setAnalysisText] = useState("");
+  const [analysisSaved, setAnalysisSaved] = useState(false);
 
-  useEffect(() => {
-    const apps = scanAppData();
-    setScannedApps(apps);
-  }, []);
+  const [perspPrompt, setPerspPrompt] = useState("");
+  const [deepTheme, setDeepTheme] = useState("");
+  const [deepPrompt, setDeepPrompt] = useState("");
+  const [summaryPrompt, setSummaryPrompt] = useState("");
 
-  const runCrossDomainScan = async () => {
+  const [history, setHistory] = useState(loadHistory());
+  const [selectedHistory, setSelectedHistory] = useState(null);
+
+  // ペルソナ多選択トグル
+  const togglePersonaMulti = (key, val) => {
     T("tap");
-    setCrossScanning(true);
-    setCrossProgress({ done: 0, total: 200, current: "" });
-    try {
-      // 統合PWAなので同origin localStorage直接スキャン (高速・確実)
-      // 視覚的フィードバックのため少し遅延させる
-      const ids = getKnownAppIds();
-      const apps = scanAppData(); // 既存関数をそのまま使う
-      for (let i = 0; i < ids.length; i++) {
-        const found = apps.some(a => a.rawId === ids[i] || a.paddedId === ids[i]);
-        setCrossProgress({ done: i + 1, total: ids.length, current: `app${ids[i]} ${found ? "✓" : "·"}` });
-        await new Promise(r => setTimeout(r, 8)); // 8ms × 200 = 1.6秒で完走
-      }
-      setScannedApps(apps);
-      T("success");
-    } catch (e) {
-      alert("スキャンエラー: " + e.message);
-    } finally {
-      setCrossScanning(false);
-    }
+    setPersona(prev => {
+      const c = prev[key] || [];
+      return { ...prev, [key]: c.includes(val) ? c.filter(v => v !== val) : [...c, val] };
+    });
   };
 
-  const totalSessions = useMemo(() =>
-    scannedApps.reduce((s, a) => s + a.count, 0) + manualEntries.length,
-  [scannedApps, manualEntries]);
+  const updateRadar = (id, val) => {
+    setRadarScores(prev => ({ ...prev, [id]: val }));
+  };
 
-  const buildAndShowPrompt = () => {
+  // ラリーが何問でも回答できれば進める。最低1カテゴリは選択を要求。
+  const personaReady = ["domain", "emotion", "cognitive", "time"].some(k => (persona[k] || []).length > 0);
+
+  const goToRadar = () => {
+    T("next");
+    setScreen("radar");
+  };
+
+  const goToRally = () => {
+    T("next");
+    setRallyIdx(0);
+    setScreen("rally");
+  };
+
+  const rallyNext = () => {
+    T("next");
+    if (rallyIdx < RALLY_QUESTIONS.length - 1) setRallyIdx(rallyIdx + 1);
+    else generatePromptAndShow();
+  };
+  const rallyPrev = () => { T("tap"); if (rallyIdx > 0) setRallyIdx(rallyIdx - 1); };
+  const rallySkip = () => {
     T("tap");
-    const p = buildMetaPrompt(scannedApps, manualEntries);
+    setRallyAnswers(prev => { const a = [...prev]; a[rallyIdx] = ""; return a; });
+    rallyNext();
+  };
+  const rallySetAns = (val) => {
+    setRallyAnswers(prev => { const a = [...prev]; a[rallyIdx] = val; return a; });
+  };
+
+  const generatePromptAndShow = () => {
+    const p = buildAnalysisPrompt(userName, persona, rallyAnswers, radarScores);
     setAnalysisPrompt(p);
-    setScreen("prompt");
+    setScreen("result");
+    T("success");
+    saveProfile({ userName });
   };
 
-  const parseAndShowProfile = () => {
+  const saveAnalysisToHistory = () => {
+    if (!analysisText.trim()) return;
+    const rec = {
+      id: Date.now(),
+      date: new Date().toLocaleDateString("ja-JP"),
+      time: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+      userName: userName || "匿名",
+      preview: analysisText.slice(0, 60),
+      analysis: analysisText,
+      persona,
+      rallyAnswers,
+      radarScores,
+    };
+    const newH = [rec, ...history].slice(0, 50);
+    setHistory(newH); saveHistory(newH);
+    setAnalysisSaved(true); T("success");
+    setTimeout(() => setAnalysisSaved(false), 2500);
+  };
+
+  const loadFromHistory = (rec) => {
     T("tap");
-    if (!aiResult.trim()) { alert("AIの回答を貼り付けてください"); return; }
-    const p = parseProfile(aiResult);
-    setProfile(p);
-    if (p) {
-      const rec = {
-        date: new Date().toLocaleDateString("ja-JP"),
-        time: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-        totalApps: scannedApps.length + manualEntries.length,
-        totalSessions,
-        profile: p,
-      };
-      const newP = [rec, ...profiles].slice(0, 10);
-      setProfiles(newP); saveProfiles(newP);
-      T("success");
+    setUserName(rec.userName === "匿名" ? "" : (rec.userName || ""));
+    setPersona(rec.persona || { domain: [], emotion: [], cognitive: [], time: [] });
+    setRallyAnswers(rec.rallyAnswers || Array(10).fill(""));
+    setRadarScores(rec.radarScores || { focus: 3, memo: 3, curi: 3, out: 3, cont: 3, meta: 3 });
+    setAnalysisText(rec.analysis || "");
+    setAnalysisPrompt(buildAnalysisPrompt(
+      rec.userName === "匿名" ? "" : (rec.userName || ""),
+      rec.persona || { domain: [], emotion: [], cognitive: [], time: [] },
+      rec.rallyAnswers || Array(10).fill(""),
+      rec.radarScores || { focus: 3, memo: 3, curi: 3, out: 3, cont: 3, meta: 3 }
+    ));
+    setSelectedHistory(null);
+    setScreen("result");
+    T("success");
+  };
+
+  const deleteHistory = (id) => {
+    T("tap");
+    const newH = history.filter(h => h.id !== id);
+    setHistory(newH); saveHistory(newH);
+  };
+
+  const generatePerspective = () => {
+    T("tap");
+    if (!analysisText.trim()) {
+      alert("先に上のテキストエリアにAIの分析結果を貼り付けてください");
+      return;
     }
-    setScreen("profile");
+    setPerspPrompt(buildPerspectivePrompt(userName, analysisText));
   };
 
-  const generateShare = async () => {
-    if (!profile) return;
-    T("tap"); setGenerating(true);
-    try {
-      const url = await generateShareImage(profile, scannedApps.length + manualEntries.length);
-      setShareImageUrl(url);
-    } catch (e) {
-      alert("シェア画像生成に失敗: " + e.message);
-    } finally { setGenerating(false); }
-  };
-
-  const downloadShare = () => {
-    if (!shareImageUrl) return;
-    const a = document.createElement("a");
-    a.href = shareImageUrl;
-    a.download = `200の問い人格分析_${new Date().toLocaleDateString("ja-JP").replace(/\//g, "")}.png`;
-    a.click();
-    T("success");
-  };
-
-  const addManual = () => {
-    if (!manualForm.id || !manualForm.text.trim()) return;
-    const id = manualForm.id.padStart(3, "0");
-    const meta = APP_META[id.replace(/^0/, "")] || APP_META[id] || APP_META_FALLBACK(id);
-    setManualEntries([...manualEntries, {
-      id, text: manualForm.text, name: meta[0], category: meta[2]
-    }]);
-    setManualForm({ id: "", text: "" });
-    T("success");
-  };
-
-  const removeManual = (idx) => {
-    const next = manualEntries.filter((_, i) => i !== idx);
-    setManualEntries(next);
-  };
-
-  const reset = () => {
-    setScreen("home"); setAnalysisPrompt(""); setAiResult(""); setProfile(null); setShareImageUrl("");
-  };
-
-  // セッションを最小情報のみに圧縮(プロンプト・コード・分析テキスト類を完全除去)
-  const cleanSession = (s) => {
-    if (!s || typeof s !== "object") return s;
-    return {
-      date: s.date || "",
-      time: s.time || "",
-      mode: s.mode || "",
-    };
-  };
-
-  // エクスポート: 全app履歴をJSONダウンロード(パース・整形・クリーン化済み)
-  const exportData = () => {
+  const generateDeepDive = () => {
     T("tap");
-    const apps = {};
-    let totalSessions = 0;
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (!key) continue;
-        const m = key.match(/^app(\d{2,3})_history_v1$/);
-        if (m) {
-          try {
-            const parsed = JSON.parse(localStorage.getItem(key) || "[]");
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              const id = m[1].padStart(3, "0");
-              const meta = APP_META[m[1]] || APP_META[id] || APP_META_FALLBACK(id);
-              apps[id] = {
-                name: meta[0],
-                category: meta[2],
-                sessions: parsed.map(cleanSession),
-              };
-              totalSessions += parsed.length;
-            }
-          } catch {}
-        } else if (key === "app000_profile_v1") {
-          try {
-            const profiles = JSON.parse(localStorage.getItem(key) || "[]");
-            apps["000_profiles"] = profiles.map(p => ({
-              date: p.date, time: p.time,
-              totalApps: p.totalApps, totalSessions: p.totalSessions,
-            }));
-          } catch {}
-        }
-      }
-    } catch (e) {}
-    const meta = {
-      version: 2,
-      exportedAt: new Date().toISOString(),
-      appsCount: Object.keys(apps).filter(k => /^\d{3}$/.test(k)).length,
-      totalSessions,
-      apps,
-    };
-    const blob = new Blob([JSON.stringify(meta, null, 2)], { type: "application/octet-stream" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const stamp = new Date().toLocaleDateString("ja-JP").replace(/\//g, "");
-    a.href = url;
-    a.download = `200toi_backup_${stamp}.json`;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 100);
-    T("success");
+    if (!analysisText.trim()) {
+      alert("先に上のテキストエリアにAIの分析結果を貼り付けてください");
+      return;
+    }
+    if (!deepTheme.trim()) {
+      alert("深掘りしたいテーマを入力してください");
+      return;
+    }
+    setDeepPrompt(buildDeepDivePrompt(userName, analysisText, deepTheme));
   };
 
-  // インポート: JSONファイルから履歴をマージ(v1/v2両対応)
-  const importData = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target.result);
-        let merged = 0;
-        const mergeKey = (key, incoming) => {
-          if (!Array.isArray(incoming) || incoming.length === 0) return;
-          let existing = [];
-          try { existing = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
-          const ids = new Set(existing.map(x => x.id || x.timestamp || (x.date + "_" + x.time)));
-          const fresh = incoming.filter(x => {
-            const k = x.id || x.timestamp || (x.date + "_" + x.time);
-            return !ids.has(k);
-          });
-          const combined = [...existing, ...fresh].slice(-100);
-          localStorage.setItem(key, JSON.stringify(combined));
-          merged += fresh.length;
-        };
-        // v2 (新): { apps: { "003": { sessions: [...] }, "000_profiles": [...] } }
-        if (parsed && parsed.apps && typeof parsed.apps === "object") {
-          for (const [id, val] of Object.entries(parsed.apps)) {
-            if (id === "000_profiles" && Array.isArray(val)) {
-              mergeKey("app000_profile_v1", val);
-            } else if (/^\d{3}$/.test(id) && val && Array.isArray(val.sessions)) {
-              mergeKey(`app${id}_history_v1`, val.sessions);
-            }
-          }
-        }
-        // v1 (旧): { data: { "appXXX_history_v1": "<json string>" } }
-        else if (parsed && parsed.data && typeof parsed.data === "object") {
-          for (const [key, val] of Object.entries(parsed.data)) {
-            if (!/^app(\d{2,3})_history_v1$/.test(key) && key !== "app000_profile_v1") continue;
-            try {
-              const incoming = typeof val === "string" ? JSON.parse(val) : val;
-              mergeKey(key, incoming);
-            } catch {}
-          }
-        } else {
-          alert("⚠️ 無効なバックアップファイルです");
-          return;
-        }
-        alert(`✅ インポート完了: ${merged}件の新規セッションを追加しました`);
-        setScannedApps(scanAppData());
-        T("success");
-      } catch (err) {
-        alert("⚠️ ファイル読込エラー: " + err.message);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
+  const generateHistorySummary = () => {
+    T("tap");
+    setSummaryPrompt(buildHistorySummaryPrompt(history));
   };
+
+  const resetAll = () => {
+    T("tap");
+    setScreen("home");
+    setPersona({ domain: [], emotion: [], cognitive: [], time: [] });
+    setExpDomain(null); setExpEmotion(null); setExpCognitive(null); setExpTime(null);
+    setRadarScores({ focus: 3, memo: 3, curi: 3, out: 3, cont: 3, meta: 3 });
+    setRallyIdx(0); setRallyAnswers(Array(10).fill(""));
+    setAnalysisPrompt(""); setAnalysisText(""); setAnalysisSaved(false);
+    setPerspPrompt(""); setDeepTheme(""); setDeepPrompt("");
+    setSummaryPrompt(""); setSelectedHistory(null);
+  };
+
+  const goHome = () => { T("tap"); setScreen("home"); };
+
+  const currentRally = RALLY_QUESTIONS[rallyIdx] || RALLY_QUESTIONS[0];
+  const rallyAns = rallyAnswers[rallyIdx] || "";
+  const rallyProgress = ((rallyIdx + 1) / RALLY_QUESTIONS.length) * 100;
+  const rallyAnsweredCount = rallyAnswers.filter(a => a && a.trim()).length;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 540, margin: "0 auto", display: "flex", flexDirection: "column" }}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}body,html{background:#f0ede8!important}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#c8c0b4}textarea:focus,input:focus{outline:none}button{font-family:inherit;cursor:pointer}select{font-family:inherit}`}</style>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column" }}>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}body,html{background:#f0ede8!important}@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#ddd}textarea:focus,input:focus{border-color:${C.borderActive}!important;outline:none}button{font-family:inherit;cursor:pointer}`}</style>
 
-      <div style={{ padding: "14px 18px 12px", borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#fff" }}>🧬</div>
+      {/* Header */}
+      <div style={{ padding: "12px 16px 0", borderBottom: `1px solid ${C.border}`, background: C.surface, boxShadow: "0 1px 6px rgba(0,0,0,0.06)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🔍</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: C.gold }}>200の問い 人格分析</div>
-            <div style={{ fontSize: 10, color: C.textMuted }}>200本のapp実績から横断的にあなたの人格を可視化</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.goldDim }}>200の問い 人格分析</div>
+            <div style={{ fontSize: 9, color: C.textMuted }}>4階層カテゴリ × 10ラリー × 6軸レーダー</div>
           </div>
-          <button onClick={toggleTap} style={{ padding: "4px 8px", background: tapOn ? C.goldBg : C.surface2, border: `1px solid ${tapOn ? C.borderActive : C.border}`, borderRadius: 7, fontSize: 10, color: tapOn ? C.gold : C.textMuted }}>{tapOn ? "🔔" : "🔕"}</button>
-          <button onClick={() => toggleSpeak(profile?.summary || "")} style={{ padding: "4px 8px", background: isSpeaking ? C.goldBg : C.surface2, border: `1px solid ${isSpeaking ? C.borderActive : C.border}`, borderRadius: 7, fontSize: 10, color: isSpeaking ? C.gold : C.textSub }}>{isSpeaking ? "⏹" : "🔈"}</button>
+          <button onClick={toggleTap} style={{ padding: "4px 7px", background: tapOn ? C.goldBg : C.surface2, border: `1px solid ${tapOn ? C.borderActive : C.border}`, borderRadius: 7, fontSize: 10, color: tapOn ? C.gold : C.textMuted, fontWeight: 600 }}>{tapOn ? "🔔音ON" : "🔕音OFF"}</button>
+          <button onClick={() => toggleSpeak(analysisText)} style={{ padding: "4px 7px", background: isSpeaking ? C.goldBg : C.surface2, border: `1px solid ${isSpeaking ? C.borderActive : C.border}`, borderRadius: 7, fontSize: 10, color: isSpeaking ? C.gold : C.textSub, fontWeight: 600 }}>{isSpeaking ? "⏹停止" : "🔈読上"}</button>
+          <button onClick={goHome} style={{ padding: "4px 8px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 7, fontSize: 10, color: C.textSub }}>🏠</button>
         </div>
       </div>
 
-      {/* HOME */}
+      {/* ホーム */}
       {screen === "home" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px 40px" }}>
-          <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🧬</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: C.gold, marginBottom: 8 }}>200の問い 人格分析</div>
-            <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.8 }}>
-              他の200本のappで蓄積した分析履歴を横断して、<br />あなたの「人格プロファイル」を生成します。
-            </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px 18px 40px", animation: "fadeUp 0.4s ease" }}>
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🔍</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: C.gold, marginBottom: 8, lineHeight: 1.5 }}>200の問い 人格分析 v2</div>
+            <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.9 }}>「200の問い 人格分析」を<span style={{ color: C.goldDim, fontWeight: 600 }}>4階層カテゴリ・10問ラリー・6軸レーダー</span>で構造化し、自分視点で深掘りする。CBT × 成功循環 × マズロー。</div>
           </div>
 
-          <div style={{ background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 12, padding: 14, marginBottom: 18, fontSize: 11.5, color: C.gold, lineHeight: 1.7 }}>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>🎁 完全無料・コストゼロ・永久動作 (δ方式)</div>
-            このアプリは「メタ分析プロンプト」を生成。それを ChatGPT / Claude / Gemini にコピーして使えば、料金もAPI契約も不要です。
+          <div style={{ background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 12, padding: 14, marginBottom: 20, fontSize: 11.5, color: C.gold, lineHeight: 1.7 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>🎁 完全無料・コストゼロ・永久動作</div>
+            δ方式：このアプリは「分析プロンプト」を生成します。それを ChatGPT / Claude / Gemini にコピーして使えば、料金もAPI契約も不要。あなた自身のAIが分析してくれます。
           </div>
 
-          <div style={{ background: C.surface, border: `1.5px solid ${C.borderActive}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>📡 検出されたapp履歴</div>
-              <button
-                onClick={runCrossDomainScan}
-                disabled={crossScanning}
-                style={{ padding: "5px 10px", background: crossScanning ? C.surface3 : C.goldBg, border: `1px solid ${crossScanning ? C.border : C.borderActive}`, borderRadius: 8, color: crossScanning ? C.textMuted : C.gold, fontSize: 10, fontWeight: 700 }}
-              >
-                {crossScanning ? `${crossProgress.done}/${crossProgress.total}` : "🔄 再スキャン"}
-              </button>
-            </div>
-            <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
-              ☝️ このブラウザに保存された全アプリの履歴を自動検出します(統合PWA同origin)。
-            </div>
-
-            {scannedApps.length === 0 ? (
-              <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.7, padding: "8px 0" }}>
-                まだ履歴がありません。<br />
-                各アプリで分析を完了させると自動で集計されます。
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
+            {[
+              { n: "01", t: "4階層カテゴリで状況を構造化", d: "生活領域 / 感情 / 思考パターン / 時間スコープ" },
+              { n: "02", t: "200の問い 人格分析レーダー", d: "睡眠・食欲・集中・気分・対人・興味の6軸を1〜5で評価" },
+              { n: "03", t: "10問ラリーで深掘り", d: "全出し→重さ→きっかけ→対処→未来視点まで10問" },
+              { n: "04", t: "AI分析プロンプト生成", d: "CBT × 成功循環 × マズローを踏まえた構造化分析" },
+            ].map(item => (
+              <div key={item.n} style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+                <div style={{ fontSize: 10, color: C.goldDim, fontWeight: 700, width: 18, flexShrink: 0, marginTop: 2 }}>{item.n}</div>
+                <div><div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginBottom: 2 }}>{item.t}</div><div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.6 }}>{item.d}</div></div>
               </div>
-            ) : (
-              <>
-                <div style={{ fontSize: 11.5, color: C.textSub, marginBottom: 10 }}>
-                  <strong style={{ color: C.gold, fontSize: 14 }}>{scannedApps.length}</strong>本のappで <strong style={{ color: C.gold, fontSize: 14 }}>{totalSessions}</strong>セッション
-                </div>
-                <div style={{ maxHeight: 240, overflowY: "auto" }}>
-                  {scannedApps.map(a => (
-                    <div key={a.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
-                      <div style={{ fontSize: 16 }}>{a.emoji}</div>
-                      <div style={{ flex: 1, fontSize: 11, color: C.text }}>#{a.paddedId} {a.name}</div>
-                      <div style={{ fontSize: 10, color: C.textMuted }}>{a.count}回</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            ))}
+            <div style={{ fontSize: 11, color: C.textMuted, paddingTop: 10, borderTop: `1px solid ${C.border}`, marginTop: 4 }}>所要時間：約15〜20分</div>
           </div>
 
-          {/* バックアップ・端末間移動 */}
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.textSub, marginBottom: 6 }}>💾 バックアップ・端末間移動</div>
-            <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
-              データは「このブラウザ」に保存されます。別端末で続けたい時はエクスポート→新端末でインポート。
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={exportData} style={{ flex: 1, padding: "9px 0", background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700 }}>
-                📤 エクスポート
-              </button>
-              <label style={{ flex: 1, padding: "9px 0", background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 8, color: C.gold, fontSize: 11, fontWeight: 700, textAlign: "center", cursor: "pointer" }}>
-                📥 インポート
-                <input type="file" accept="application/json,.json" onChange={importData} style={{ display: "none" }} />
-              </label>
-            </div>
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, color: C.textSub, marginBottom: 6 }}>お名前（任意）</div>
+            <input value={userName} onChange={e => setUserName(e.target.value)} placeholder="例：田中"
+              style={{ width: "100%", background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "10px 14px", fontSize: 14 }} />
           </div>
 
-          <button
-            onClick={buildAndShowPrompt}
-            disabled={scannedApps.length === 0 && manualEntries.length === 0}
-            style={{
-              width: "100%", padding: "14px 0",
-              background: (scannedApps.length === 0 && manualEntries.length === 0) ? C.surface3 : `linear-gradient(135deg,${C.gold},${C.goldDim})`,
-              border: "none", borderRadius: 14,
-              color: (scannedApps.length === 0 && manualEntries.length === 0) ? C.textMuted : "#fff",
-              fontSize: 14, fontWeight: 800
-            }}
-          >
-            🧬 横断分析を始める →
+          <button onClick={() => { T("tap"); setScreen("persona"); }} style={{ width: "100%", padding: "14px 0", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 14, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 16px rgba(138,96,48,0.3)` }}>
+            ▶ セッションを始める
           </button>
 
-          {profiles.length > 0 && (
-            <button onClick={() => setScreen("history")} style={{ width: "100%", padding: "10px 0", marginTop: 10, background: "transparent", border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 12 }}>
-              📊 過去のプロファイル({profiles.length}件)
+          {history.length > 0 && (
+            <button onClick={() => { T("tap"); setScreen("history"); }} style={{ marginTop: 14, width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 600 }}>
+              📚 過去の記録を見る（{history.length}件）
             </button>
           )}
         </div>
       )}
 
-      {/* PROMPT */}
-      {screen === "prompt" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 40px" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.gold, marginBottom: 4 }}>✨ メタ分析プロンプト生成完了</div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>下のプロンプトをコピーして、ChatGPT/Claude/Geminiに貼り付け → 返ってきた結果を下のボックスに貼り付け</div>
+      {/* ペルソナ設定 - 4階層カテゴリ */}
+      {screen === "persona" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+          <div style={{ fontSize: 12, color: C.textSub, marginBottom: 16, padding: "10px 14px", background: C.goldLight, borderRadius: 10, border: `1px solid ${C.border}`, lineHeight: 1.8 }}>
+            今のあなたの状態を<strong style={{ color: C.goldDim }}>4軸で構造化</strong>します。<br />
+            関係する項目を、各カテゴリから複数選択してください。少なくとも1つ選べば次に進めます。
+          </div>
 
-          <PromptCard title="🧬 200の問い 人格分析プロンプト" prompt={analysisPrompt} />
+          <HierCatPicker
+            catObj={DOMAIN_CATS}
+            selected={persona.domain}
+            multi={true}
+            expandedCat={expDomain}
+            setExpandedCat={setExpDomain}
+            onPick={(o) => togglePersonaMulti("domain", o)}
+            label="生活領域（人格分析の発生源 7カテゴリ）"
+            icon="🏡"
+          />
+
+          <HierCatPicker
+            catObj={EMOTION_CATS}
+            selected={persona.emotion}
+            multi={true}
+            expandedCat={expEmotion}
+            setExpandedCat={setExpEmotion}
+            onPick={(o) => togglePersonaMulti("emotion", o)}
+            label="感情タイプ（どんな感情か 6カテゴリ）"
+            icon="💭"
+          />
+
+          <HierCatPicker
+            catObj={COGNITIVE_CATS}
+            selected={persona.cognitive}
+            multi={true}
+            expandedCat={expCognitive}
+            setExpandedCat={setExpCognitive}
+            onPick={(o) => togglePersonaMulti("cognitive", o)}
+            label="思考パターン（認知の歪み 6カテゴリ）"
+            icon="🧠"
+          />
+
+          <HierCatPicker
+            catObj={TIME_CATS}
+            selected={persona.time}
+            multi={true}
+            expandedCat={expTime}
+            setExpandedCat={setExpTime}
+            onPick={(o) => togglePersonaMulti("time", o)}
+            label="時間スコープ（いつから／いつまで 4カテゴリ）"
+            icon="🕰"
+          />
+
+          <button onClick={personaReady ? goToRadar : null} disabled={!personaReady}
+            style={{
+              width: "100%", padding: "14px 0",
+              background: personaReady ? `linear-gradient(135deg,${C.gold},${C.goldDim})` : C.surface3,
+              border: "none", borderRadius: 14,
+              color: personaReady ? "#fff" : C.textMuted,
+              fontSize: 15, fontWeight: 700,
+              cursor: personaReady ? "pointer" : "not-allowed",
+              marginBottom: 10,
+            }}>
+            {personaReady ? "▶ 200の問い 人格分析レーダーへ" : "まずは1項目以上選択"}
+          </button>
+
+          <button onClick={goHome} style={{ width: "100%", padding: "10px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textSub, fontSize: 12 }}>
+            ← ホームへ戻る
+          </button>
+        </div>
+      )}
+
+      {/* 健康レーダー */}
+      {screen === "radar" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+          <div style={{ fontSize: 12, color: C.textSub, marginBottom: 16, padding: "10px 14px", background: C.goldLight, borderRadius: 10, border: `1px solid ${C.border}`, lineHeight: 1.8 }}>
+            今のメンタル健康を<strong style={{ color: C.goldDim }}>6軸で評価</strong>してください。<br />
+            1=とても悪い・5=とても良い。直感でOKです。最も低い軸が「優先デトックス対象」になります。
+          </div>
+
+          <HealthRadar scores={radarScores} onChange={updateRadar} />
+
+          <button onClick={goToRally}
+            style={{
+              width: "100%", padding: "14px 0",
+              background: `linear-gradient(135deg,${C.gold},${C.goldDim})`,
+              border: "none", borderRadius: 14, color: "#fff",
+              fontSize: 15, fontWeight: 700, cursor: "pointer",
+              marginBottom: 10,
+            }}>
+            ▶ 10問ラリーへ進む
+          </button>
+
+          <button onClick={() => { T("tap"); setScreen("persona"); }} style={{ width: "100%", padding: "10px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textSub, fontSize: 12 }}>
+            ← ペルソナ設定に戻る
+          </button>
+        </div>
+      )}
+
+      {/* 10ラリー */}
+      {screen === "rally" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.goldDim }}>
+                Q{currentRally.step} / {RALLY_QUESTIONS.length}
+              </div>
+              <div style={{ fontSize: 11, color: C.textMuted }}>
+                回答済み: {rallyAnsweredCount} / {RALLY_QUESTIONS.length}
+              </div>
+            </div>
+            <div style={{ height: 6, background: C.surface2, borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${rallyProgress}%`, background: `linear-gradient(90deg,${C.gold},${C.goldDim})`, borderRadius: 3, transition: "width 0.25s ease" }} />
+            </div>
+          </div>
+
+          <div style={{ background: C.surface, border: `1.5px solid ${C.borderActive}`, borderRadius: 14, padding: 18, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: C.gold, fontWeight: 700, marginBottom: 8 }}>
+              💬 ラリー {currentRally.step}/10 ({currentRally.id})
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.text, lineHeight: 1.6, marginBottom: 12 }}>
+              {currentRally.q}
+            </div>
+            <textarea value={rallyAns} onChange={(e) => rallySetAns(e.target.value)}
+              placeholder={currentRally.placeholder} rows={4}
+              style={{ width: "100%", padding: "10px 14px", background: C.surface2, border: `1.5px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, fontFamily: "sans-serif", lineHeight: 1.6, resize: "vertical" }} />
+            <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>
+              ※ 回答は任意。スキップ可能です。
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <button onClick={rallyPrev} disabled={rallyIdx === 0} style={{
+              flex: 1, padding: "12px 0",
+              background: rallyIdx === 0 ? C.surface3 : C.surface2,
+              border: `1px solid ${C.border}`, borderRadius: 10,
+              color: rallyIdx === 0 ? C.textMuted : C.textSub,
+              fontSize: 13, fontWeight: 700,
+              cursor: rallyIdx === 0 ? "not-allowed" : "pointer",
+            }}>← 前へ</button>
+            <button onClick={rallySkip} style={{
+              flex: 1, padding: "12px 0",
+              background: C.surface2, border: `1px solid ${C.border}`,
+              borderRadius: 10, color: C.textSub,
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+            }}>⏭ スキップ</button>
+            <button onClick={rallyNext} style={{
+              flex: 1.4, padding: "12px 0",
+              background: `linear-gradient(135deg,${C.gold},${C.goldDim})`,
+              border: "none", borderRadius: 10, color: "#fff",
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+            }}>
+              {rallyIdx < RALLY_QUESTIONS.length - 1 ? "次へ →" : "🎯 完了→生成"}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 4, marginTop: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            {RALLY_QUESTIONS.map((rq, i) => {
+              const ans = rallyAnswers[i] || "";
+              const filled = ans.trim().length > 0;
+              const current = i === rallyIdx;
+              return (
+                <button key={rq.id} onClick={() => { T("tap"); setRallyIdx(i); }}
+                  style={{
+                    width: 28, height: 28, borderRadius: "50%",
+                    background: current ? C.gold : (filled ? C.greenLight : C.surface2),
+                    border: `1.5px solid ${current ? C.goldDim : (filled ? C.green : C.border)}`,
+                    color: current ? "#fff" : (filled ? C.green : C.textMuted),
+                    fontSize: 10, fontWeight: 700, cursor: "pointer",
+                  }}
+                  title={`Q${rq.step}: ${rq.q}`}>
+                  {rq.step}
+                </button>
+              );
+            })}
+          </div>
+
+          <button onClick={() => { T("tap"); setScreen("radar"); }} style={{ marginTop: 16, width: "100%", padding: "10px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textSub, fontSize: 11, fontWeight: 600 }}>
+            ← レーダーに戻る
+          </button>
+        </div>
+      )}
+
+      {/* 結果 */}
+      {screen === "result" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.goldDim, marginBottom: 12 }}>📋 200の問い 人格分析分析</div>
+
+          <HealthRadar scores={radarScores} />
+
+          <PromptCard title="📋 メイン分析プロンプト (CBT × 成功循環 × マズロー)" prompt={analysisPrompt} />
+
+          <ResultPasteBox value={analysisText} onChange={setAnalysisText} onSave={saveAnalysisToHistory} saved={analysisSaved} />
+
+          <div style={{ marginBottom: 14 }}>
+            <button onClick={generatePerspective} style={{ width: "100%", padding: "11px 0", background: `linear-gradient(135deg,${C.blue},#0a3a5a)`, border: "none", borderRadius: 11, color: "#fff", fontSize: 12, fontWeight: 700, marginBottom: 10 }}>
+              👥 他者視点プロンプトを生成（親友・家族・1年後の自分）
+            </button>
+            {perspPrompt && <PromptCard title="👥 他者視点プロンプト" prompt={perspPrompt} />}
+          </div>
 
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.textSub, marginBottom: 8 }}>📥 AIの分析結果を貼り付け</div>
-            <textarea
-              value={aiResult}
-              onChange={e => setAiResult(e.target.value)}
-              placeholder="ここにAIの応答をコピー&ペースト..."
-              rows={8}
-              style={{ width: "100%", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "10px 12px", fontSize: 12, resize: "vertical", lineHeight: 1.7, fontFamily: "sans-serif", marginBottom: 8 }}
-            />
-            <button
-              onClick={parseAndShowProfile}
-              disabled={!aiResult.trim()}
-              style={{ width: "100%", padding: "12px 0", background: !aiResult.trim() ? C.surface3 : `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 10, color: !aiResult.trim() ? C.textMuted : "#fff", fontSize: 12, fontWeight: 700 }}
-            >
-              🌟 プロファイルを表示 →
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.textSub, marginBottom: 8 }}>🔍 特定テーマで深掘り</div>
+            <input value={deepTheme} onChange={e => setDeepTheme(e.target.value)} placeholder="例：仕事に持っていかない方法 / 人間関係の整理 / 自己否定との向き合い方..."
+              style={{ width: "100%", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 9, color: C.text, padding: "9px 12px", fontSize: 12, marginBottom: 8 }} />
+            <button onClick={generateDeepDive}
+              style={{ width: "100%", padding: "10px 0", background: deepTheme.trim() ? `linear-gradient(135deg,${C.gold},${C.goldDim})` : C.surface3, border: "none", borderRadius: 10, color: deepTheme.trim() ? "#fff" : C.textMuted, fontSize: 12, fontWeight: 700 }}>
+              🔍 深掘りプロンプトを生成
             </button>
           </div>
+          {deepPrompt && <PromptCard title="🔍 深掘りプロンプト" prompt={deepPrompt} />}
 
-          <button onClick={reset} style={{ width: "100%", padding: "10px 0", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textSub, fontSize: 12 }}>← ホームへ戻る</button>
+          <button onClick={() => { T("tap"); setScreen("rally"); }} style={{ width: "100%", padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 13, fontWeight: 700, marginBottom: 8, cursor: "pointer" }}>
+            🔄 ラリー回答を見直す
+          </button>
+
+          <button onClick={resetAll} style={{ width: "100%", padding: "12px 0", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 12 }}>
+            🏠 ホームへ戻る / 別の人で始める
+          </button>
         </div>
       )}
 
-      {/* PROFILE */}
-      {screen === "profile" && profile && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 40px" }}>
-          <div style={{ textAlign: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 36 }}>🧬</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: C.gold }}>あなたの人格プロファイル</div>
-            <div style={{ fontSize: 10, color: C.textMuted }}>{scannedApps.length + manualEntries.length}本のapp / {totalSessions}セッションから生成</div>
-          </div>
-
-          {Object.keys(profile.values || {}).length >= 3 && (
-            <div style={{ background: C.surface, border: `1px solid ${C.borderActive}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.gold, marginBottom: 10 }}>🌟 価値観の軸</div>
-              <RadarChart scores={profile.values} />
-            </div>
-          )}
-
-          <ProfileCard icon="🧠" title="思考傾向" body={profile.thinking} color={C.blue} />
-          <ProfileCard icon="❤️" title="感情パターン" body={profile.emotion} color={C.red} />
-          <ProfileCard icon="🎯" title="行動傾向" body={profile.action} color={C.green} />
-          <ProfileCard icon="💎" title="強み と 伸ばしどころ" body={profile.strengths} color={C.gold} />
-          <ProfileCard icon="🌅" title="人生フェーズの傾向" body={profile.phase} color={C.purple} />
-          <ProfileCard icon="🚀" title="おすすめ次アプリ" body={profile.recommend} color={C.gold} />
-          <ProfileCard icon="📝" title="全体総評" body={profile.summary} color={C.goldDim} />
-
-          <div style={{ background: C.surface, border: `1.5px solid ${C.borderActive}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, marginBottom: 8 }}>📤 シェア画像を作る</div>
-            <button onClick={generateShare} disabled={generating} style={{ width: "100%", padding: "10px 0", background: generating ? C.surface3 : C.gold, border: "none", borderRadius: 10, color: generating ? C.textMuted : "#fff", fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-              {generating ? "生成中..." : (shareImageUrl ? "🔄 再生成" : "📸 PNG画像を生成")}
-            </button>
-            {shareImageUrl && (
-              <>
-                <img src={shareImageUrl} alt="プロファイル" style={{ width: "100%", borderRadius: 8, border: `1px solid ${C.border}`, marginBottom: 8 }} />
-                <button onClick={downloadShare} style={{ width: "100%", padding: "10px 0", background: C.green, border: "none", borderRadius: 10, color: "#fff", fontSize: 12, fontWeight: 700 }}>
-                  💾 ダウンロード
-                </button>
-              </>
-            )}
-          </div>
-
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setScreen("prompt")} style={{ flex: 1, padding: "10px 0", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textSub, fontSize: 11 }}>← プロンプトへ</button>
-            <button onClick={reset} style={{ flex: 1, padding: "10px 0", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, color: C.textSub, fontSize: 11 }}>🏠 ホーム</button>
-          </div>
-        </div>
-      )}
-
-      {/* HISTORY */}
-      {screen === "history" && (
+      {/* 履歴一覧 */}
+      {screen === "history" && !selectedHistory && (
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 40px" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.gold, marginBottom: 12 }}>📊 過去のプロファイル</div>
-          {profiles.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 30, color: C.textMuted, fontSize: 12 }}>まだ履歴がありません</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.gold, marginBottom: 16 }}>📊 セッション履歴</div>
+          {history.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>まだ履歴がありません</div>
           ) : (
-            profiles.map((p, i) => (
-              <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ fontSize: 11, color: C.gold, fontWeight: 600 }}>{p.date} {p.time}</div>
-                  <div style={{ fontSize: 10, color: C.textMuted }}>{p.totalApps}本 / {p.totalSessions}セッション</div>
+            <>
+              {history.length >= 2 && (
+                <div style={{ marginBottom: 14 }}>
+                  <button onClick={generateHistorySummary} style={{ width: "100%", padding: "10px 0", marginBottom: 8, background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 10, color: C.gold, fontSize: 12, fontWeight: 600 }}>
+                    🧠 過去{history.length}回分の傾向サマリプロンプトを生成
+                  </button>
+                  {summaryPrompt && <PromptCard title="🧠 履歴サマリプロンプト" prompt={summaryPrompt} />}
                 </div>
-                <div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.7 }}>
-                  {(p.profile.summary || p.profile.raw || "").slice(0, 120)}...
+              )}
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>👆 タップすると詳細を確認できます</div>
+              {history.map((h) => (
+                <div key={h.id || h.date} onClick={() => setSelectedHistory(h)} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 10, cursor: "pointer" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <div style={{ fontSize: 12, color: C.gold, fontWeight: 600 }}>{h.userName}</div>
+                    <div style={{ fontSize: 11, color: C.textMuted }}>{h.date} {h.time || ""} ›</div>
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.6 }}>{h.preview}...</div>
                 </div>
-              </div>
-            ))
+              ))}
+              <button onClick={() => { if (window.confirm("履歴を全削除しますか？")) { setHistory([]); saveHistory([]); } }} style={{ width: "100%", padding: "10px 0", marginTop: 4, background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, color: C.textMuted, fontSize: 11 }}>🗑 履歴を全削除</button>
+            </>
           )}
-          <button onClick={reset} style={{ width: "100%", padding: "12px 0", marginTop: 10, background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 12, color: "#fff", fontSize: 13, fontWeight: 700 }}>🏠 ホーム</button>
+          <button onClick={goHome} style={{ width: "100%", padding: "12px 0", marginTop: 12, background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, border: "none", borderRadius: 12, color: "#fff", fontSize: 13, fontWeight: 700 }}>🏠 ホームへ</button>
+        </div>
+      )}
+
+      {/* 履歴詳細 */}
+      {screen === "history" && selectedHistory && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 40px" }}>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 12 }}>{selectedHistory.date} {selectedHistory.time || ""} のセッション ({selectedHistory.userName})</div>
+          {selectedHistory.radarScores && <HealthRadar scores={selectedHistory.radarScores} />}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: C.textSub, fontWeight: 600, marginBottom: 10 }}>AI分析結果</div>
+            <div style={{ fontSize: 12, color: C.text, lineHeight: 1.9, whiteSpace: "pre-wrap" }}>{selectedHistory.analysis}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => loadFromHistory(selectedHistory)} style={{ flex: 1, padding: "12px 0", background: C.gold, border: "none", borderRadius: 12, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              🔄 呼び出す
+            </button>
+            <button onClick={() => deleteHistory(selectedHistory.id)} style={{ padding: "12px 18px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.red, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              🗑
+            </button>
+            <button onClick={() => setSelectedHistory(null)} style={{ flex: 1, padding: "12px 0", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, color: C.textSub, fontSize: 12, fontWeight: 700 }}>← 一覧へ</button>
+          </div>
         </div>
       )}
     </div>
