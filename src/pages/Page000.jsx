@@ -404,6 +404,34 @@ const loadProfile = () => { try { return JSON.parse(localStorage.getItem(PROFILE
 const saveProfile = (p) => { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {} };
 
 // ============================================================
+// 全200問い 横断集計 (Page000 集計機能)
+// ============================================================
+const loadAllAppHistories = () => {
+  const list = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      const m = k && k.match(/^app(\d{3})_history_v[12]$/);
+      if (!m) continue;
+      const n = parseInt(m[1], 10);
+      if (n === 0) continue;
+      try {
+        const arr = JSON.parse(localStorage.getItem(k) || "[]");
+        if (Array.isArray(arr) && arr.length > 0) {
+          list.push({ n, count: arr.length, latest: arr[0] || null });
+        }
+      } catch {}
+    }
+  } catch {}
+  list.sort((a, b) => a.n - b.n);
+  return list;
+};
+const buildAllAppSummaryPrompt = (rows) => {
+  const head = rows.slice(0, 50).map(r => `#${String(r.n).padStart(3, "0")} ${r.count}回`).join(" / ");
+  return `あなたは200の問いシリーズ全体を俯瞰してアドバイスするコーチです。\nユーザーは以下の問いに取り組んできました（直近回数）：\n${head}\n---\n横断的なテーマ・繰り返し現れる課題・伸びている領域・手薄な領域を抽出し、次の一手を3つ提案してください。`;
+};
+
+// ============================================================
 // UI Components
 // ============================================================
 
@@ -674,6 +702,8 @@ export default function App() {
 
   const [history, setHistory] = useState(loadHistory());
   const [selectedHistory, setSelectedHistory] = useState(null);
+  const [allAppRows, setAllAppRows] = useState([]);
+  const [allAppPrompt, setAllAppPrompt] = useState("");
 
   // ペルソナ多選択トグル
   const togglePersonaMulti = (key, val) => {
@@ -876,6 +906,48 @@ export default function App() {
               📚 過去の記録を見る（{history.length}件）
             </button>
           )}
+
+          <button onClick={() => { T("tap"); const rows = loadAllAppHistories(); setAllAppRows(rows); setAllAppPrompt(rows.length >= 2 ? buildAllAppSummaryPrompt(rows) : ""); setScreen("allapps"); }} style={{ marginTop: 14, width: "100%", padding: "12px 0", background: C.goldBg, border: `1px solid ${C.borderActive}`, borderRadius: 12, color: C.gold, fontSize: 13, fontWeight: 700 }}>
+            📊 全200の問い 横断サマリ
+          </button>
+        </div>
+      )}
+
+      {/* 全アプリ集計 */}
+      {screen === "allapps" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.gold, marginBottom: 12 }}>📊 全200の問い 横断サマリ</div>
+          <div style={{ fontSize: 11.5, color: C.textSub, marginBottom: 14, lineHeight: 1.7 }}>このブラウザに保存された他の問い（#001〜#200）の履歴を集計します。各問いアプリで「履歴に保存」を押すと記録され、ここに反映されます。</div>
+          {allAppRows.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: C.textMuted, fontSize: 13 }}>まだ他の問いの履歴がありません。<br />#001〜#200のいずれかでセッションを保存すると、ここに集計されます。</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <div style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: C.textMuted }}>取り組み中の問い</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: C.gold }}>{allAppRows.length}<span style={{ fontSize: 11, color: C.textMuted, marginLeft: 4 }}>/200</span></div>
+                </div>
+                <div style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: C.textMuted }}>合計セッション数</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: C.gold }}>{allAppRows.reduce((s, r) => s + r.count, 0)}</div>
+                </div>
+              </div>
+
+              {allAppPrompt && <PromptCard title="🧠 横断分析プロンプト" prompt={allAppPrompt} />}
+
+              <div style={{ fontSize: 12, color: C.textSub, marginTop: 14, marginBottom: 8 }}>問い別 取組回数</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {allAppRows.map(r => (
+                  <div key={r.n} style={{ display: "flex", alignItems: "center", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px" }}>
+                    <div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700, width: 50 }}>#{String(r.n).padStart(3, "0")}</div>
+                    <div style={{ flex: 1, fontSize: 12, color: C.text }}>{r.latest && r.latest.theme ? r.latest.theme : `問い ${r.n}`}</div>
+                    <div style={{ fontSize: 11, color: C.textSub, fontWeight: 700 }}>{r.count}回</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <button onClick={() => { T("tap"); setScreen("home"); }} style={{ marginTop: 18, width: "100%", padding: "10px 0", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, color: C.textMuted, fontSize: 12 }}>← ホームに戻る</button>
         </div>
       )}
 
