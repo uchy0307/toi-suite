@@ -187,7 +187,6 @@ export default function Page() {
               <div style={{ fontSize: 10, color: C.textMuted }}>#001〜#200の取組を集計し、内省全体を俯瞰</div>
             </div>
             <button onClick={exportMemo} style={{ padding: "6px 10px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.textSub }}>💾 メモ書き出し</button>
-            <button onClick={refresh} style={{ padding: "6px 10px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.textSub }}>🔄 更新</button>
           </div>
         </div>
 
