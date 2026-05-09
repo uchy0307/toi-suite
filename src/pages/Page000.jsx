@@ -124,12 +124,19 @@ export default function Page() {
   const [rows, setRows] = useState([]);
   const [history, setHistory] = useState(loadHistory());
   const [showDetail, setShowDetail] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
   useEffect(() => {
     setRows(loadAllAppHistories());
   }, []);
 
-  const refresh = () => setRows(loadAllAppHistories());
+  const refresh = () => {
+    const r = loadAllAppHistories();
+    setRows(r);
+    setRefreshTick(t => t + 1);
+    setLastRefreshAt(new Date());
+  };
 
   const summaryPrompt = buildAnalysisPrompt(rows);
   const deepPrompt = buildDeepAnalysisPrompt(rows);
@@ -150,14 +157,14 @@ export default function Page() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
-        <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, background: C.surface, position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, background: C.surface }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 36, height: 36, borderRadius: "50%", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📊</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: C.goldDim }}>200の問い 横断分析</div>
               <div style={{ fontSize: 10, color: C.textMuted }}>#001〜#200の取組を集計し、内省全体を俯瞰</div>
             </div>
-            <button onClick={refresh} style={{ padding: "6px 10px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.textSub }}>🔄 更新</button>
+            <button onClick={refresh} style={{ padding: "6px 10px", background: refreshTick > 0 ? C.goldBg : C.surface2, border: `1px solid ${refreshTick > 0 ? C.borderActive : C.border}`, borderRadius: 8, fontSize: 11, color: refreshTick > 0 ? C.gold : C.textSub, fontWeight: 600 }}>🔄 更新{lastRefreshAt ? ` (${lastRefreshAt.getHours()}:${String(lastRefreshAt.getMinutes()).padStart(2, "0")})` : ""}</button>
           </div>
         </div>
 
