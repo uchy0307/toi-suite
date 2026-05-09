@@ -61,7 +61,7 @@ function getAllHistories() {
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      const m = key && key.match(/^app(\d{2,3})_history_v1$/);
+      const m = key && key.match(/^app(\d{2,3})_history_v[12]$/);
       if (!m) continue;
       try {
         const data = JSON.parse(localStorage.getItem(key) || "[]");

@@ -124,18 +124,40 @@ export default function Page() {
   const [rows, setRows] = useState([]);
   const [history, setHistory] = useState(loadHistory());
   const [showDetail, setShowDetail] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
-  const [lastRefreshAt, setLastRefreshAt] = useState(null);
-
   useEffect(() => {
     setRows(loadAllAppHistories());
   }, []);
 
-  const refresh = () => {
-    const r = loadAllAppHistories();
-    setRows(r);
-    setRefreshTick(t => t + 1);
-    setLastRefreshAt(new Date());
+  const refresh = () => setRows(loadAllAppHistories());
+
+  const exportMemo = () => {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      pageCount: rows.length,
+      sessionTotal: rows.reduce((s, r) => s + r.count, 0),
+      pages: [],
+    };
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        const m = k && k.match(/^app(\d{3})_history_v[12]$/);
+        if (!m) continue;
+        try {
+          const arr = JSON.parse(localStorage.getItem(k) || "[]");
+          if (Array.isArray(arr) && arr.length > 0) {
+            data.pages.push({ pageId: m[1], storageKey: k, history: arr });
+          }
+        } catch {}
+      }
+    } catch {}
+    data.pages.sort((a, b) => parseInt(a.pageId) - parseInt(b.pageId));
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    a.href = url; a.download = `200toi-memo-export-${ts}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const summaryPrompt = buildAnalysisPrompt(rows);
@@ -164,7 +186,8 @@ export default function Page() {
               <div style={{ fontSize: 14, fontWeight: 700, color: C.goldDim }}>200の問い 横断分析</div>
               <div style={{ fontSize: 10, color: C.textMuted }}>#001〜#200の取組を集計し、内省全体を俯瞰</div>
             </div>
-            <button onClick={refresh} style={{ padding: "6px 10px", background: refreshTick > 0 ? C.goldBg : C.surface2, border: `1px solid ${refreshTick > 0 ? C.borderActive : C.border}`, borderRadius: 8, fontSize: 11, color: refreshTick > 0 ? C.gold : C.textSub, fontWeight: 600 }}>🔄 更新{lastRefreshAt ? ` (${lastRefreshAt.getHours()}:${String(lastRefreshAt.getMinutes()).padStart(2, "0")})` : ""}</button>
+            <button onClick={exportMemo} style={{ padding: "6px 10px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.textSub }}>💾 メモ書き出し</button>
+            <button onClick={refresh} style={{ padding: "6px 10px", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.textSub }}>🔄 更新</button>
           </div>
         </div>
 
