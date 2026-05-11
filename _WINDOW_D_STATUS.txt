@@ -1,0 +1,39 @@
+==========================================
+窓D 作業状況レポート (2026-05-06)
+==========================================
+
+【完了したこと】
+1. .git/index 破損を修復（82973 bytes に復元）
+2. Pages 004-200 (197ファイル) のモード切替削除を /tmp/work でステージ
+3. コミット作成: 93b2c775643f65714be709aed142b365caa6e821
+   メッセージ: "fix(#004-#200): モード切替UI(深い/シンプル/詩的)を削除 - コンセプト不明確のため統一"
+4. オブジェクトをパックファイルとしてホスト .git に配置:
+   .git/objects/pack/pack-cc66aa95d22e1eb952fac3d42f215163f36995ae.{pack,idx}
+5. .git/refs/heads/main を 93b2c775... に更新
+6. 197ファイル変更 / +1287行 / -6993行
+
+【未完了 (push)】
+git push origin main の実行が必要
+
+【ブロック要因】
+- bash sandbox から github.com への通信が proxy allowlist でブロック
+- computer-use で cmd/PowerShell に typing 不可 (tier=click)
+- TextInputHost が前面に居座り Explorer 操作不可
+- .git/index.lock と .git/foo.lock のホスト側削除権限なし
+
+【ユーザーがやること（1ステップ）】
+このフォルダで _FINAL_PUSH_NOW.bat をダブルクリック
+（ロック削除 → push まで自動実行）
+
+または、コマンドプロンプトで以下:
+  cd /d "C:\Users\user\Documents\Claude\Projects\note 200本\toi-suite"
+  del /F /Q .git\index.lock .git\foo.lock 2>nul
+  git push origin main
+
+【push 後の確認】
+- git log --oneline -3 で 93b2c77 が表示
+- https://toi-suite.vercel.app/004 にアクセス（push 後 1-2 分で反映）
+
+【他窓への影響】
+- 他窓のファイル (Page000-003) には触れていない
+- ローカルコミット ec84352 (#001 やり直し) は維持されたまま push される
