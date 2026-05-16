@@ -97,6 +97,18 @@ export default function PageBase({
     });
   };
 
+  // A3: 選択肢クリック時、最後の問でなければ自動的に次の問へ進める
+  const setAnsAndAdvance = (val) => {
+    setAnswers((prev) => {
+      const next = [...prev];
+      next[idx] = val;
+      return next;
+    });
+    if (idx < 9) {
+      setTimeout(() => setIdx((i) => Math.min(9, i + 1)), 280);
+    }
+  };
+
   const goNext = () => {
     if (idx < 9) setIdx(idx + 1);
   };
@@ -261,7 +273,7 @@ export default function PageBase({
               return (
                 <button
                   key={opt}
-                  onClick={() => setAns(opt)}
+                  onClick={() => setAnsAndAdvance(opt)}
                   style={{
                     padding: "10px 12px",
                     borderRadius: 10,
@@ -386,7 +398,7 @@ export default function PageBase({
           boxShadow: allAnswered ? "0 4px 14px rgba(138,96,48,0.3)" : "none",
         }}
       >
-        {allAnswered ? "⚔️ 6軸で己を映す" : `あと ${10 - answeredCount} 問の回答を待つ`}
+        {allAnswered ? "🪞 結果を見る (6軸で己を映す)" : `あと ${10 - answeredCount} 問の回答を待つ`}
       </button>
 
       {errorText && (
