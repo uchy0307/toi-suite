@@ -97,6 +97,14 @@ export default function PageBase({
     });
   };
 
+  // 選択肢タップ → 自動進行（最終問は止める）
+  const selectChoice = (val) => {
+    setAns(val);
+    if (idx < 9) {
+      setTimeout(() => setIdx(idx + 1), 220);
+    }
+  };
+
   const goNext = () => {
     if (idx < 9) setIdx(idx + 1);
   };
@@ -185,6 +193,7 @@ export default function PageBase({
       text: `200の問い / 六軸の鏡 結果\n${title || ""}`,
     });
     if (!native.ok) {
+      // Web Share API 非対応 → ダウンロード+Xインテント
       downloadImage(img.dataUrl, `toi-suite-${questionSetId}.png`);
       shareToX(`200の問い / 六軸の鏡 結果\n${title || ""}\n#200の問い #toi_suite`);
       setShareMsg("✅ 画像をDLしました。Xに添付してください");
@@ -277,7 +286,7 @@ export default function PageBase({
               return (
                 <button
                   key={opt}
-                  onClick={() => setAns(opt)}
+                  onClick={() => selectChoice(opt)}
                   style={{
                     padding: "10px 12px",
                     borderRadius: 10,
@@ -338,23 +347,44 @@ export default function PageBase({
         >
           ← 前へ
         </button>
-        <button
-          onClick={goNext}
-          disabled={idx === 9}
-          style={{
-            flex: 1,
-            padding: "12px 0",
-            background: idx === 9 ? C.surface3 : C.surface2,
-            border: `1px solid ${C.border}`,
-            borderRadius: 10,
-            color: idx === 9 ? C.textMuted : C.textSub,
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: idx === 9 ? "not-allowed" : "pointer",
-          }}
-        >
-          次へ →
-        </button>
+        {idx < 9 ? (
+          <button
+            onClick={goNext}
+            disabled={!answers[idx] || !String(answers[idx]).trim()}
+            style={{
+              flex: 1,
+              padding: "12px 0",
+              background: !answers[idx] || !String(answers[idx]).trim() ? C.surface3 : C.surface2,
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              color: !answers[idx] || !String(answers[idx]).trim() ? C.textMuted : C.textSub,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: !answers[idx] || !String(answers[idx]).trim() ? "not-allowed" : "pointer",
+            }}
+          >
+            次へ →
+          </button>
+        ) : (
+          <button
+            onClick={runAnalysis}
+            disabled={!allAnswered || loading}
+            style={{
+              flex: 1,
+              padding: "12px 0",
+              background: allAnswered ? `linear-gradient(135deg,${C.gold},${C.goldDim})` : C.surface3,
+              border: "none",
+              borderRadius: 10,
+              color: allAnswered ? "#fff" : C.textMuted,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: allAnswered ? "pointer" : "not-allowed",
+              boxShadow: allAnswered ? "0 2px 8px rgba(138,96,48,0.3)" : "none",
+            }}
+          >
+            🎯 結果を見る
+          </button>
+        )}
       </div>
 
       {/* 進捗ドット */}
