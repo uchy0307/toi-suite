@@ -24,6 +24,13 @@ import {
 } from "recharts";
 import { analyzeAnswers, AXIS_LABELS, AXIS_KEYS, AXIS_DESCRIPTIONS } from "../lib/gemini.js";
 import { saveAnalysis, isSupabaseConfigured } from "../lib/supabase.js";
+import {
+  generateShareImage,
+  downloadImage,
+  shareToX,
+  shareToLine,
+  shareNative,
+} from "../lib/shareImage.js";
 
 const C = {
   bg: "#f0ede8",
@@ -74,6 +81,8 @@ export default function PageBase({
   const [result, setResult] = useState(null); // { scores, analysis_summary, advice, _source, _error }
   const [savedStatus, setSavedStatus] = useState("idle"); // idle | saving | ok | failed | skipped
   const [errorText, setErrorText] = useState("");
+  const [shareStatus, setShareStatus] = useState("idle"); // idle | generating | ready | error
+  const [shareMsg, setShareMsg] = useState("");
 
   const cur = QS[idx];
   const progress = ((idx + 1) / 10) * 100;
@@ -133,7 +142,71 @@ export default function PageBase({
     setResult(null);
     setSavedStatus("idle");
     setErrorText("");
+    setShareStatus("idle");
+    setShareMsg("");
     setScreen("rally");
+  };
+
+  // 結果を画像化（ダウンロード or Webシェア）
+  const buildImage = async () => {
+    if (!result) return null;
+    setShareStatus("generating");
+    setShareMsg("画像生成中...");
+    try {
+      const { blob, dataUrl } = await generateShareImage({
+        title,
+        scores: result.scores,
+        summary: result.analysis_summary,
+        axisKeys: AXIS_KEYS,
+        axisLabels: AXIS_LABELS,
+      });
+      setShareStatus("ready");
+      setShareMsg("");
+      return { blob, dataUrl };
+    } catch (e) {
+      setShareStatus("error");
+      setShareMsg(e.message || "画像生成に失敗");
+      return null;
+    }
+  };
+
+  const handleDownload = async () => {
+    const img = await buildImage();
+    if (!img) return;
+    downloadImage(img.dataUrl, `toi-suite-${questionSetId}.png`);
+    setShareMsg("✅ 画像を保存しました");
+  };
+
+  const handleShareX = async () => {
+    const img = await buildImage();
+    if (!img) return;
+    const native = await shareNative({
+      blob: img.blob,
+      text: `200の問い / 六軸の鏡 結果\n${title || ""}`,
+    });
+    if (!native.ok) {
+      downloadImage(img.dataUrl, `toi-suite-${questionSetId}.png`);
+      shareToX(`200の問い / 六軸の鏡 結果\n${title || ""}\n#200の問い #toi_suite`);
+      setShareMsg("✅ 画像をDLしました。Xに添付してください");
+    } else {
+      setShareMsg("✅ 共有しました");
+    }
+  };
+
+  const handleShareLine = async () => {
+    const img = await buildImage();
+    if (!img) return;
+    const native = await shareNative({
+      blob: img.blob,
+      text: `200の問い / 六軸の鏡 結果\n${title || ""}`,
+    });
+    if (!native.ok) {
+      downloadImage(img.dataUrl, `toi-suite-${questionSetId}.png`);
+      shareToLine(`200の問い / 六軸の鏡 結果\n${title || ""}`);
+      setShareMsg("✅ 画像をDLしました。LINEに添付してください");
+    } else {
+      setShareMsg("✅ 共有しました");
+    }
   };
 
   // recharts用データ整形
@@ -504,6 +577,83 @@ export default function PageBase({
           <div style={{ fontSize: 12, lineHeight: 1.85, color: C.text, fontWeight: 600 }}>
             {result.advice}
           </div>
+        </div>
+
+        {/* シェア */}
+        <div
+          style={{
+            background: C.surface,
+            border: `1.5px solid ${C.borderActive}`,
+            borderRadius: 12,
+            padding: 12,
+            marginBottom: 12,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.gold, marginBottom: 8 }}>
+            📣 結果をシェア
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+            <button
+              onClick={handleDownload}
+              disabled={shareStatus === "generating"}
+              style={{
+                padding: "10px 0",
+                background: C.surface2,
+                border: `1.5px solid ${C.border}`,
+                borderRadius: 10,
+                color: C.goldDim,
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: shareStatus === "generating" ? "wait" : "pointer",
+              }}
+            >
+              💾 画像保存
+            </button>
+            <button
+              onClick={handleShareX}
+              disabled={shareStatus === "generating"}
+              style={{
+                padding: "10px 0",
+                background: "#000",
+                border: "1.5px solid #000",
+                borderRadius: 10,
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: shareStatus === "generating" ? "wait" : "pointer",
+              }}
+            >
+              𝕏 でシェア
+            </button>
+            <button
+              onClick={handleShareLine}
+              disabled={shareStatus === "generating"}
+              style={{
+                padding: "10px 0",
+                background: "#06C755",
+                border: "1.5px solid #06C755",
+                borderRadius: 10,
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: shareStatus === "generating" ? "wait" : "pointer",
+              }}
+            >
+              LINE で
+            </button>
+          </div>
+          {shareMsg && (
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 10,
+                color: shareStatus === "error" ? C.red : C.textMuted,
+                textAlign: "center",
+              }}
+            >
+              {shareMsg}
+            </div>
+          )}
         </div>
 
         {/* 保存ステータス */}
