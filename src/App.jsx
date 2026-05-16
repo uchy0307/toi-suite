@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useState, useEffect, useMemo } from "react";
 import { BrowserRouter, Routes, Route, useParams, Link, useNavigate } from "react-router-dom";
 import AppGate from "./AppGate.jsx";
 import QuickAnalyze from "./QuickAnalyze.jsx";
+import Onboarding, { loadOnboarding, clearOnboarding } from "./components/Onboarding.jsx";
 
 // Vite glob import - 全Page*.jsxを動的に発見
 const pageModules = import.meta.glob("./pages/Page*.jsx");
@@ -198,6 +199,8 @@ function CatalogGate({ children }) {
 function Catalog() {
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState({});
+  const [onboarding, setOnboarding] = useState(() => loadOnboarding());
+  const [showOnboarding, setShowOnboarding] = useState(() => !loadOnboarding());
 
   useEffect(() => {
     // 各appの履歴件数を集計
@@ -217,10 +220,27 @@ function Catalog() {
     setHistory(h);
   }, []);
 
+  if (showOnboarding) {
+    return (
+      <Onboarding
+        onComplete={(payload) => {
+          setOnboarding(payload);
+          setShowOnboarding(false);
+        }}
+      />
+    );
+  }
+
+  const recommendedSet = new Set((onboarding && onboarding.recommended) || []);
+
   const filtered = APP_INDEX.filter(a => {
     if (!search) return true;
     return a.name.includes(search) || a.id.includes(search) || (a.category || "").includes(search);
   });
+
+  const recommended = !search && recommendedSet.size > 0
+    ? APP_INDEX.filter(a => recommendedSet.has(a.id))
+    : [];
 
   const grouped = {};
   for (const a of filtered) {
@@ -232,10 +252,40 @@ function Catalog() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 540, margin: "0 auto" }}>
       {/* ヘッダー */}
-      <div style={{ padding: "20px 18px", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, color: "#fff" }}>
+      <div style={{ padding: "20px 18px", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, color: "#fff", position: "relative" }}>
         <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>200の問い シリーズ</div>
         <div style={{ fontSize: 11, color: "#f5e8d0", lineHeight: 1.6 }}>自己理解を深める200本のAI対話アプリ統合スイート</div>
+        <button
+          onClick={() => { clearOnboarding(); setOnboarding(null); setShowOnboarding(true); }}
+          title="オンボーディングをやり直す"
+          style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.35)", color: "#fff", fontSize: 10, padding: "5px 9px", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
+        >
+          🔄 やり直す
+        </button>
       </div>
+
+      {/* レコメンド (オンボーディング結果) */}
+      {recommended.length > 0 && (
+        <div style={{ padding: "14px 14px 0" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, marginBottom: 8, padding: "0 4px" }}>
+            ✨ あなたへのおすすめ ({recommended.length}本)
+          </div>
+          <div style={{ display: "flex", overflowX: "auto", gap: 8, padding: "4px 0 8px", marginBottom: 6 }}>
+            {recommended.map(a => {
+              const hcount = history[a.id] || 0;
+              return (
+                <Link key={a.id} to={`/${a.id}`} style={{ textDecoration: "none", flexShrink: 0 }}>
+                  <div style={{ width: 130, background: C.surface, border: `1.5px solid ${C.borderActive}`, borderRadius: 10, padding: "10px 8px", boxSizing: "border-box" }}>
+                    <div style={{ fontSize: 22, textAlign: "center", marginBottom: 4 }}>{a.emoji}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: C.text, lineHeight: 1.3, minHeight: 26 }}>#{a.id} {a.name}</div>
+                    {hcount > 0 && <div style={{ fontSize: 9, color: C.gold, marginTop: 4 }}>📊 {hcount}回</div>}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* メタアプリへの誘導(目立つカード) */}
       <Link to="/000" style={{ textDecoration: "none" }}>
