@@ -13,7 +13,9 @@
 //     return <PageBase questionSetId="app042" title="..." questions={QUESTIONS} />;
 //   }
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import html2canvas from "html2canvas";
+import QRCode from "qrcode";
 import {
   Radar,
   RadarChart,
@@ -74,6 +76,13 @@ export default function PageBase({
   const [result, setResult] = useState(null); // { scores, analysis_summary, advice, _source, _error }
   const [savedStatus, setSavedStatus] = useState("idle"); // idle | saving | ok | failed | skipped
   const [errorText, setErrorText] = useState("");
+  const resultCardRef = useRef(null);
+  const [qrUrl, setQrUrl] = useState("");
+  const [sharing, setSharing] = useState(false);
+
+  useEffect(() => {
+    QRCode.toDataURL("https://toi-suite.vercel.app", { width: 160, margin: 1 }).then(setQrUrl).catch(() => {});
+  }, []);
 
   const cur = QS[idx];
   const progress = ((idx + 1) / 10) * 100;
@@ -134,6 +143,54 @@ export default function PageBase({
     setSavedStatus("idle");
     setErrorText("");
     setScreen("rally");
+  };
+
+  const generateShareImage = async () => {
+    if (!resultCardRef.current) return null;
+    try {
+      const canvas = await html2canvas(resultCardRef.current, { backgroundColor: "#f0ede8", scale: 2, useCORS: true, logging: false });
+      return canvas.toDataURL("image/png");
+    } catch (e) {
+      console.error("share image generation failed", e);
+      return null;
+    }
+  };
+
+  const saveImage = async () => {
+    setSharing(true);
+    try {
+      const url = await generateShareImage();
+      if (!url) { alert("画像生成に失敗しました"); return; }
+      if (navigator.share && navigator.canShare) {
+        try {
+          const blob = await (await fetch(url)).blob();
+          const file = new File([blob], "toi-suite-result.png", { type: "image/png" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: "200の問い 6軸分析", text: "自己理解を可視化" });
+            return;
+          }
+        } catch {}
+      }
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `toi-suite-result-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const shareToX = () => {
+    const summary = (result && result.analysis_summary) ? String(result.analysis_summary).slice(0, 100) : "";
+    const txt = `🪞 200の問い 6軸分析の結果\n${summary}\n\n#200の問い #自己理解`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(txt)}&url=${encodeURIComponent("https://toi-suite.vercel.app")}`, "_blank", "noopener");
+  };
+
+  const shareToLINE = () => {
+    const url = "https://toi-suite.vercel.app";
+    window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`, "_blank", "noopener");
   };
 
   // recharts用データ整形
@@ -390,6 +447,7 @@ export default function PageBase({
 
     return (
       <div style={{ padding: "16px 16px 32px" }}>
+        <div ref={resultCardRef} style={{ background: "#f0ede8", padding: 4 }}>
         {/* タイトル */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: C.goldDim }}>📊 六軸の鏡</div>
@@ -504,6 +562,30 @@ export default function PageBase({
           <div style={{ fontSize: 12, lineHeight: 1.85, color: C.text, fontWeight: 600 }}>
             {result.advice}
           </div>
+        </div>
+
+        {/* SNS シェア用ブランディングフッタ (画像化時に含まれる) */}
+        <div style={{ marginTop: 14, padding: "10px 14px", background: "#ffffff", border: "1px solid #c8c0b4", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#8a6030" }}>toi-suite</div>
+            <div style={{ fontSize: 9, color: "#6a5e50" }}>200の問い × 6軸分析</div>
+            <div style={{ fontSize: 9, color: "#8a6030", marginTop: 2 }}>toi-suite.vercel.app</div>
+          </div>
+          {qrUrl && <img src={qrUrl} alt="QR" style={{ width: 56, height: 56 }} />}
+        </div>
+        </div>
+
+        {/* SNSシェアボタン */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 14, marginBottom: 10 }}>
+          <button onClick={saveImage} disabled={sharing} style={{ padding: "10px 0", background: sharing ? "#ddd8d0" : "#ffffff", border: "1.5px solid #8a6030", borderRadius: 10, color: "#5a3a10", fontSize: 11, fontWeight: 700, cursor: sharing ? "not-allowed" : "pointer" }}>
+            {sharing ? "🌀 生成中" : "📷 画像保存"}
+          </button>
+          <button onClick={shareToX} style={{ padding: "10px 0", background: "#000000", border: "none", borderRadius: 10, color: "#ffffff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+            𝕏 シェア
+          </button>
+          <button onClick={shareToLINE} style={{ padding: "10px 0", background: "#06c755", border: "none", borderRadius: 10, color: "#ffffff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+            💬 LINE
+          </button>
         </div>
 
         {/* 保存ステータス */}
