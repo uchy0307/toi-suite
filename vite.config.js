@@ -6,7 +6,7 @@ export default defineConfig({
   cacheDir: "node_modules/.vite-1778973123083",
   plugins: [react()],
   build: {
-    outDir: "dist",
+    outDir: "dist-v2",
     sourcemap: false,
     rollupOptions: {
       output: {
