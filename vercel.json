@@ -1,6 +1,4 @@
 {
-  "installCommand": "rm -rf node_modules && npm install --force",
-  "buildCommand": "npm run build",
   "rewrites": [
     {
       "source": "/api/:path*",
