@@ -1,6 +1,7 @@
 {
-  "buildCommand": "echo BUILD-START-2026-05-17 && rm -rf node_modules dist .vercel/output && npm install --force --no-audit --no-fund && echo NPM-INSTALL-DONE && npm run build && echo BUILD-COMPLETE && ls -la dist/assets/ && touch dist/.fresh-build",
+  "buildCommand": "rm -rf node_modules dist dist-v2 .vercel/output && npm install --force --no-audit --no-fund && npm run build",
   "installCommand": "echo SKIP_INSTALL",
+  "outputDirectory": "dist-v2",
   "rewrites": [
     {
       "source": "/api/:path*",
