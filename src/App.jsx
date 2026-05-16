@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useState, useEffect, useMemo } from "react";
 import { BrowserRouter, Routes, Route, useParams, Link, useNavigate } from "react-router-dom";
 import AppGate from "./AppGate.jsx";
 import QuickAnalyze from "./QuickAnalyze.jsx";
+import Onboarding, { ONBOARDING_KEY, RecommendBanner } from "./components/Onboarding.jsx";
 
 // Vite glob import - 全Page*.jsxを動的に発見
 const pageModules = import.meta.glob("./pages/Page*.jsx");
@@ -198,6 +199,33 @@ function CatalogGate({ children }) {
 function Catalog() {
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState({});
+  const [onboarding, setOnboarding] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ONBOARDING_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setOnboarding(parsed);
+      } else {
+        setShowOnboarding(true);
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleOnboardingComplete = (payload) => {
+    setOnboarding(payload);
+    setShowOnboarding(false);
+  };
+  const handleOnboardingSkip = () => {
+    setShowOnboarding(false);
+  };
+  const handleOnboardingReset = () => {
+    try { localStorage.removeItem(ONBOARDING_KEY); } catch (e) {}
+    setOnboarding(null);
+    setShowOnboarding(true);
+  };
 
   useEffect(() => {
     // 各appの履歴件数を集計
@@ -229,13 +257,37 @@ function Catalog() {
     grouped[cat].push(a);
   }
 
+  if (showOnboarding) {
+    return (
+      <Onboarding
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
+      />
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 540, margin: "0 auto" }}>
       {/* ヘッダー */}
-      <div style={{ padding: "20px 18px", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, color: "#fff" }}>
-        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>200の問い シリーズ</div>
-        <div style={{ fontSize: 11, color: "#f5e8d0", lineHeight: 1.6 }}>自己理解を深める200本のAI対話アプリ統合スイート</div>
+      <div style={{ padding: "20px 18px", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>200の問い シリーズ</div>
+          <div style={{ fontSize: 11, color: "#f5e8d0", lineHeight: 1.6 }}>自己理解を深める200本のAI対話アプリ統合スイート</div>
+        </div>
+        {!onboarding && (
+          <button
+            onClick={() => setShowOnboarding(true)}
+            style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.4)", color: "#fff", fontSize: 10, padding: "6px 10px", borderRadius: 8, cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap" }}
+          >
+            🗝️ おすすめ診断
+          </button>
+        )}
       </div>
+
+      {/* オンボーディング結果バナー */}
+      {onboarding && (
+        <RecommendBanner onboarding={onboarding} onReset={handleOnboardingReset} />
+      )}
 
       {/* メタアプリへの誘導(目立つカード) */}
       <Link to="/000" style={{ textDecoration: "none" }}>
