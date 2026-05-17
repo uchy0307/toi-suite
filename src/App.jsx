@@ -5,6 +5,9 @@ import QuickAnalyze from "./QuickAnalyze.jsx";
 import Onboarding, { loadOnboarding, clearOnboarding } from "./components/Onboarding.jsx";
 import GlobalShareButton from "./components/GlobalShareButton.jsx";
 import GlobalRallyNav from "./components/GlobalRallyNav.jsx";
+import EngagementBar from "./components/EngagementBar.jsx";
+import DailyPick from "./components/DailyPick.jsx";
+import { recordSession } from "./lib/streak.js";
 
 // Vite glob import - 全Page*.jsxを動的に発見
 const pageModules = import.meta.glob("./pages/Page*.jsx");
@@ -63,6 +66,7 @@ function MasterOnlyGate({ children }) {
 
 function PageRoute() {
   const { id } = useParams();
+  useEffect(() => { recordSession(id); }, [id]);
   const path = `./pages/Page${id}.jsx`;
   const loader = pageModules[path];
   if (!loader) return <NotFound />;
@@ -251,10 +255,10 @@ function Catalog() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "sans-serif", maxWidth: 540, margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: '"Inter", "Hiragino Sans", "Yu Gothic", sans-serif', maxWidth: 540, margin: "0 auto" }}>
       {/* ヘッダー */}
       <div style={{ padding: "20px 18px", background: `linear-gradient(135deg,${C.gold},${C.goldDim})`, color: "#fff", position: "relative" }}>
-        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>200の問い シリーズ</div>
+        <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 4, fontFamily: '"Noto Serif JP", serif', letterSpacing: "0.02em" }}>200の問い シリーズ</div>
         <div style={{ fontSize: 11, color: "#f5e8d0", lineHeight: 1.6 }}>自己理解を深める200本のAI対話アプリ統合スイート</div>
         <button
           onClick={() => { clearOnboarding(); setOnboarding(null); setShowOnboarding(true); }}
@@ -264,6 +268,12 @@ function Catalog() {
           🔄 やり直す
         </button>
       </div>
+
+      {/* エンゲージメント（ストリーク・進捗・アチーブメント） */}
+      <EngagementBar />
+
+      {/* 今日のおすすめ */}
+      <DailyPick onboarding={onboarding} />
 
       {/* レコメンド (オンボーディング結果) */}
       {recommended.length > 0 && (
@@ -319,7 +329,7 @@ function Catalog() {
               const hcount = history[a.id] || 0;
               return (
                 <Link key={a.id} to={`/${a.id}`} style={{ textDecoration: "none" }}>
-                  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", marginBottom: 6, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 1px 4px rgba(40,30,20,0.06)", transition: "transform 0.15s, box-shadow 0.15s" }}>
                     <div style={{ fontSize: 20 }}>{a.emoji}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>#{a.id} {a.name}</div>
