@@ -98,15 +98,21 @@ function BackBar({ currentId }) {
   const navigate = useNavigate();
   const [showAnalyze, setShowAnalyze] = useState(false);
   const openChatGPT = async () => {
+    // Open new tab SYNCHRONOUSLY to preserve user gesture (mobile browsers block window.open after await)
+    const newTab = window.open("about:blank", "_blank", "noopener");
     let prompt = "";
     try { prompt = await navigator.clipboard.readText(); } catch (e) {}
     let url = "https://chatgpt.com/";
     if (prompt && prompt.length > 5 && prompt.length <= 1500) {
       url = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
-    } else if (prompt && prompt.length > 1500) {
-      try { await navigator.clipboard.writeText(prompt); } catch {}
     }
-    window.open(url, "_blank", "noopener");
+    if (newTab) {
+      try { newTab.location.href = url; } catch (e) {
+        window.location.href = url;
+      }
+    } else {
+      window.location.href = url;
+    }
   };
   return (
     <>
