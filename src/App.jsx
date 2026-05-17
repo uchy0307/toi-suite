@@ -6,6 +6,8 @@ import Onboarding, { loadOnboarding, clearOnboarding } from "./components/Onboar
 import GlobalShareButton from "./components/GlobalShareButton.jsx";
 import GlobalRallyNav from "./components/GlobalRallyNav.jsx";
 import EngagementBar from "./components/EngagementBar.jsx";
+import DailyPick from "./components/DailyPick.jsx";
+import { recordSession } from "./lib/streak.js";
 
 // Vite glob import - 全Page*.jsxを動的に発見
 const pageModules = import.meta.glob("./pages/Page*.jsx");
@@ -64,6 +66,7 @@ function MasterOnlyGate({ children }) {
 
 function PageRoute() {
   const { id } = useParams();
+  useEffect(() => { recordSession(id); }, [id]);
   const path = `./pages/Page${id}.jsx`;
   const loader = pageModules[path];
   if (!loader) return <NotFound />;
@@ -267,6 +270,8 @@ function Catalog() {
       </div>
 
       <EngagementBar />
+
+      <DailyPick onboarding={onboarding} />
 
       {/* レコメンド (オンボーディング結果) */}
       {recommended.length > 0 && (
