@@ -102,14 +102,21 @@ function BackBar({ currentId }) {
   const navigate = useNavigate();
   const [showAnalyze, setShowAnalyze] = useState(false);
   const openChatGPT = async () => {
-    const newTab = window.open("about:blank", "_blank", "noopener");
+    // Open new tab SYNCHRONOUSLY (preserves user gesture). WITHOUT noopener so we get the reference back.
+    // (with noopener we got null and ended up navigating both blank tab AND current tab = 2 tabs)
+    const newTab = window.open("about:blank", "_blank");
     let prompt = "";
     try { prompt = await navigator.clipboard.readText(); } catch (e) {}
     let url = "https://chatgpt.com/";
     if (prompt && prompt.length > 5 && prompt.length <= 1500) {
       url = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
     }
-    if (newTab) { try { newTab.location.href = url; } catch (e) { window.location.href = url; } } else { window.location.href = url; }
+    if (newTab) {
+      try { newTab.opener = null; newTab.location.href = url; }
+      catch (e) { try { newTab.close && newTab.close(); } catch {} window.location.href = url; }
+    } else {
+      window.location.href = url;
+    }
   };
   return (
     <>
