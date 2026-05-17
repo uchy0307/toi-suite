@@ -1,5 +1,5 @@
 {
-  "buildCommand": "rm -rf node_modules dist dist-v2 .vercel/output && npm install --no-audit --no-fund && npm install html2canvas@1.4.1 qrcode@1.5.4 --no-audit --no-fund && ls node_modules/html2canvas && ls node_modules/qrcode && npm run build",
+  "buildCommand": "rm -rf node_modules dist dist-v2 .vercel/output && npm install --no-audit --no-fund && npm install html2canvas@1.4.1 qrcode@1.5.4 --no-audit --no-fund && npm run build",
   "installCommand": "echo SKIP_INSTALL",
   "outputDirectory": "dist-v2",
   "rewrites": [
