@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useParams, Link, useNavigate } from "reac
 import AppGate from "./AppGate.jsx";
 import QuickAnalyze from "./QuickAnalyze.jsx";
 import Onboarding, { loadOnboarding, clearOnboarding } from "./components/Onboarding.jsx";
+import GlobalShareButton from "./components/GlobalShareButton.jsx";
 
 // Vite glob import - 全Page*.jsxを動的に発見
 const pageModules = import.meta.glob("./pages/Page*.jsx");
@@ -354,6 +355,7 @@ export default function App() {
         <Route path="/:id" element={<PageRoute />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <GlobalShareButton />
     </BrowserRouter>
   );
 }
