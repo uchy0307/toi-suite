@@ -5,6 +5,7 @@ import QuickAnalyze from "./QuickAnalyze.jsx";
 import Onboarding, { loadOnboarding, clearOnboarding } from "./components/Onboarding.jsx";
 import GlobalShareButton from "./components/GlobalShareButton.jsx";
 import GlobalRallyNav from "./components/GlobalRallyNav.jsx";
+import EngagementBar from "./components/EngagementBar.jsx";
 
 // Vite glob import - 全Page*.jsxを動的に発見
 const pageModules = import.meta.glob("./pages/Page*.jsx");
@@ -264,6 +265,8 @@ function Catalog() {
           🔄 やり直す
         </button>
       </div>
+
+      <EngagementBar />
 
       {/* レコメンド (オンボーディング結果) */}
       {recommended.length > 0 && (
