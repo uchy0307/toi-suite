@@ -49,7 +49,7 @@ export default function Landing() {
               fontFamily: "system-ui,sans-serif",
             }}
           >
-            UCHY LAB
+            SAMURAI AESTHETICS
           </div>
           <h1
             style={{
@@ -285,7 +285,7 @@ export default function Landing() {
               ⚔️ 歴史YT
             </a>
           </div>
-          <div>© UCHY LAB · 苦徹成珠</div>
+          <div>© 苦徹成珠 · SAMURAI AESTHETICS</div>
         </footer>
       </div>
     </div>
