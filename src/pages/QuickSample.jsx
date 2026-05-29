@@ -168,10 +168,11 @@ export default function QuickSample() {
   const share = (kind) => {
     const total = scores.reduce((s, x) => s + x, 0);
     const profile = PROFILES.find((p) => total >= p.range[0] && total <= p.range[1]) || PROFILES[PROFILES.length - 1];
-    const text = `私の傾向は『${profile.name} ${profile.icon}』(${total}/21点)。200の問いで自己理解を深める`;
+    // 2026-05-29 Phase 3 第2弾: バイラル CV のためのシェア文言強化 (emoji + hook + score)
+    const text = `${profile.icon} 私は『${profile.name}』判定 (${total}/21点)\n7問でわかる侍性の自己診断やってみた👇`;
     const url = "https://toi-suite.vercel.app/sample";
     if (kind === "x") {
-      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, "_blank");
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}&hashtags=200の問い,苦徹成珠`, "_blank");
     } else if (kind === "line") {
       window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, "_blank");
     }
@@ -289,13 +290,38 @@ export default function QuickSample() {
           </div>
         </div>
 
-        {/* CTA: note + catalog */}
+        {/* CTA: 個別 note 動線 + catalog (2026-05-29 Phase 3 第2弾: CV 強化) */}
         <div style={{ background: C.goldLight, borderRadius: 16, padding: "22px 18px", marginBottom: 16, textAlign: "center" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: C.goldDim, marginBottom: 10 }}>
-            200の問いで深く知る
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.goldDim, marginBottom: 6 }}>
+            あなた向けに選ばれた 3 本
           </div>
-          <div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.7, marginBottom: 16 }}>
-            あなたへのおすすめ: {profile.rec.map(id => `#${id}`).join(" / ")} など全200本のAI対話アプリは note記事の購入で解錠されます。
+          <div style={{ fontSize: 10, color: C.textSub, lineHeight: 1.6, marginBottom: 14 }}>
+            『{profile.name}』タイプの伸びしろを直撃する問い。1 本 ¥100・買い切り。
+          </div>
+          {/* 各 rec に個別ボタン (note 検索ディープリンク) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {profile.rec.map((id) => (
+              <a
+                key={id}
+                href={`https://note.com/happy_happy_4649/search?q=${encodeURIComponent("#" + id)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "block",
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  background: C.surface,
+                  border: `1.5px solid ${C.gold}`,
+                  color: C.goldDim,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  textAlign: "left",
+                }}
+              >
+                📜 <span style={{ color: C.gold, fontWeight: 900 }}>#{id}</span> の問いを開く（noteで購入 ¥100）
+              </a>
+            ))}
           </div>
           <a
             href="https://note.com/happy_happy_4649"
@@ -303,17 +329,17 @@ export default function QuickSample() {
             rel="noopener noreferrer"
             style={{
               display: "inline-block",
-              padding: "12px 28px",
+              padding: "10px 24px",
               borderRadius: 999,
               background: `linear-gradient(135deg,${C.gold},${C.goldDim})`,
               color: "#fff",
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 800,
               textDecoration: "none",
-              marginBottom: 12,
+              marginBottom: 10,
             }}
           >
-            📝 note記事を見る
+            📚 200本のカタログを見る
           </a>
           <div>
             <Link to="/catalog" style={{ fontSize: 11, color: C.gold, textDecoration: "underline" }}>
