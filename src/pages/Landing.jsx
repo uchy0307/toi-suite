@@ -211,6 +211,135 @@ export default function Landing() {
           </button>
         </section>
 
+        {/* Pricing — CV optimization (2026-05-29 Phase 3 第1弾) */}
+        <section
+          style={{
+            padding: "26px 18px 30px",
+            background: C.surface,
+            borderRadius: 16,
+            border: `1px solid ${C.goldLight}`,
+            marginBottom: 24,
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.3em",
+              color: C.gold,
+              marginBottom: 10,
+              fontFamily: "system-ui,sans-serif",
+            }}
+          >
+            FULL ACCESS
+          </div>
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 900,
+              color: C.goldDim,
+              lineHeight: 1.4,
+              marginBottom: 6,
+            }}
+          >
+            200の問い、1本ずつ解錠
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              color: C.textSub,
+              lineHeight: 1.7,
+              marginBottom: 18,
+              fontFamily: "system-ui,sans-serif",
+            }}
+          >
+            note記事1本 = 該当の問い1ページが永久に開く
+          </div>
+          {/* 価格表記の心理学的最適化: anchor + decoy + 比喩 */}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "baseline",
+              gap: 6,
+              marginBottom: 6,
+              fontFamily: "system-ui,sans-serif",
+            }}
+          >
+            <span style={{ fontSize: 14, color: C.textSub }}>¥</span>
+            <span
+              style={{
+                fontSize: 44,
+                fontWeight: 900,
+                color: C.goldDim,
+                lineHeight: 1,
+              }}
+            >
+              100
+            </span>
+            <span style={{ fontSize: 13, color: C.textSub }}>/ 一度きり</span>
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: C.textSub,
+              marginBottom: 18,
+              fontFamily: "system-ui,sans-serif",
+            }}
+          >
+            ☕ 缶コーヒー1本以下 ・ 税込 ・ 買い切り（月額なし）
+          </div>
+          <ul
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: "0 0 20px",
+              fontSize: 12,
+              color: C.textSub,
+              lineHeight: 1.9,
+              fontFamily: "system-ui,sans-serif",
+              textAlign: "left",
+              maxWidth: 320,
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}
+          >
+            <li>✓ 該当ページのコード入力 → 永久閲覧</li>
+            <li>✓ AI対話プロンプト・テンプレ・実用ワークシート付</li>
+            <li>✓ 30日チャレンジ + 5項目セルフチェック</li>
+            <li>✓ 失敗回避リスト + 体験談</li>
+          </ul>
+          <a
+            href="https://note.com/happy_happy_4649"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-block",
+              padding: "14px 32px",
+              borderRadius: 999,
+              background: `linear-gradient(135deg,${C.gold},${C.goldDim})`,
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 800,
+              textDecoration: "none",
+              fontFamily: "system-ui,sans-serif",
+              boxShadow: "0 6px 18px rgba(138,96,48,0.25)",
+            }}
+          >
+            📜 noteで1本選んで購入する
+          </a>
+          <div
+            style={{
+              fontSize: 10,
+              color: C.textSub,
+              marginTop: 12,
+              fontFamily: "system-ui,sans-serif",
+              opacity: 0.85,
+            }}
+          >
+            購入後、記事内のアクセスコードを下の「コード入力」へ
+          </div>
+        </section>
+
         {/* Already have code */}
         <section
           style={{
