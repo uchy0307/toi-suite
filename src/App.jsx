@@ -9,6 +9,7 @@ import EngagementBar from "./components/EngagementBar.jsx";
 import DailyPick from "./components/DailyPick.jsx";
 import Landing from "./pages/Landing.jsx";          // ← 新規
 import QuickSample from "./pages/QuickSample.jsx";   // ← 新規
+import Drama001 from "./pages/Drama001.jsx";         // ← 音声ドラマ第1話
 import { recordSession } from "./lib/streak.js";
 
 // Vite glob import - 全Page*.jsxを動的に発見
@@ -360,6 +361,8 @@ export default function App() {
         {/* 公開LP */}
         <Route path="/" element={<Landing />} />
         <Route path="/sample" element={<QuickSample />} />
+        {/* 音声ドラマ */}
+        <Route path="/drama/history/001" element={<Drama001 />} />
         {/* 会員カタログ */}
         <Route path="/catalog" element={<CatalogGate><Catalog /></CatalogGate>} />
         {/* 個別アプリ */}
